@@ -1,0 +1,38 @@
+{
+  "d": {
+    "results": [
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440101", "LocationCode": "SITE-1", "LocationName": "Площадка №1", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440111", "LocationCode": "LOC-001", "LocationName": "Северный вход", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440101", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440112", "LocationCode": "LOC-002", "LocationName": "Южный вход", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440101", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440102", "LocationCode": "SITE-2", "LocationName": "Площадка №2", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440121", "LocationCode": "LOC-003", "LocationName": "Склад ГСМ", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440102", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440122", "LocationCode": "LOC-003", "LocationName": "Склад ГСМ (новый корпус)", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440102", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1748736000000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440104", "LocationCode": "LOC-004", "LocationName": "Административный корпус", "ParentLocationUuid": "", "HasChildren": false, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440103", "LocationCode": "SITE-3", "LocationName": "Площадка №3", "ParentLocationUuid": "", "HasChildren": false, "Level": 0, "EffectiveDate": "/Date(1798761600000)/" },
+
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440105", "LocationCode": "SITE-4", "LocationName": "Площадка №4", "ParentLocationUuid": "", "HasChildren": false, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440106", "LocationCode": "SITE-5", "LocationName": "Площадка №5", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440131", "LocationCode": "LOC-005", "LocationName": "Единственный корпус", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440106", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440107", "LocationCode": "SITE-6", "LocationName": "Площадка №6", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440141", "LocationCode": "LOC-006", "LocationName": "Корпус А", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440107", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440142", "LocationCode": "LOC-007", "LocationName": "Корпус Б", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440107", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440108", "LocationCode": "SITE-7", "LocationName": "Площадка №7", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440151", "LocationCode": "LOC-008", "LocationName": "Цех сборки", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440108", "HasChildren": true, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440161", "LocationCode": "LOC-009", "LocationName": "Участок 1", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440151", "HasChildren": false, "Level": 2, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440162", "LocationCode": "LOC-010", "LocationName": "Участок 2", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440151", "HasChildren": false, "Level": 2, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440152", "LocationCode": "LOC-011", "LocationName": "Склад", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440108", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440153", "LocationCode": "LOC-012", "LocationName": "Столовая", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440108", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440109", "LocationCode": "SITE-8", "LocationName": "Площадка №8", "ParentLocationUuid": "", "HasChildren": true, "Level": 0, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440171", "LocationCode": "LOC-013", "LocationName": "Корпус 1", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440172", "LocationCode": "LOC-014", "LocationName": "Корпус 2", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440173", "LocationCode": "LOC-015", "LocationName": "Корпус 3", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440174", "LocationCode": "LOC-016", "LocationName": "Корпус 4", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440175", "LocationCode": "LOC-017", "LocationName": "Корпус 5", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" },
+      { "LocationUuid": "550e8400-e29b-41d4-a716-446655440176", "LocationCode": "LOC-018", "LocationName": "Корпус 6", "ParentLocationUuid": "550e8400-e29b-41d4-a716-446655440109", "HasChildren": false, "Level": 1, "EffectiveDate": "/Date(1577836800000)/" }
+    ]
+  }
+}

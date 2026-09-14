@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>pc_lite — unit tests</title>
+
+  <!--
+    [Fix Тестируемость, аудит] Стандартный SAPUI5 1.71 QUnit-раннер —
+    та же версия/CDN, что и index.html (не обязательно совпадать
+    буквально, но проще держать один источник фреймворка на весь
+    проект). Тема/язык здесь не важны — тесты не рендерят UI, только
+    гоняют чистую логику фасада/модели, поэтому и sap.m не подключаем
+    (единственная нужная библиотека — sap.ui.core, для sap.ui.define/
+    sap.ui.require).
+  -->
+  <script src="https://ui5.sap.com/1.71.84/resources/sap-ui-core.js"
+          data-sap-ui-libs="sap.ui.core"
+          data-sap-ui-compatVersion="edge"
+          data-sap-ui-async="true"
+          data-sap-ui-resourceroots='{"sap.pc_lite.lite": "../../", "test": "../"}'
+          data-sap-ui-language="ru">
+  </script>
+
+  <link rel="stylesheet" type="text/css" href="https://ui5.sap.com/1.71.84/resources/sap/ui/thirdparty/qunit-2.css">
+  <script src="https://ui5.sap.com/1.71.84/resources/sap/ui/thirdparty/qunit-2.js"></script>
+  <script src="https://ui5.sap.com/1.71.84/resources/sap/ui/qunit/qunit-junit.js"></script>
+  <script src="https://ui5.sap.com/1.71.84/resources/sap/ui/qunit/QUnitUtils.js"></script>
+
+  <script>
+    sap.ui.getCore().attachInit(function () {
+      "use strict";
+      sap.ui.require(["test/unit/AllTests"]);
+    });
+  </script>
+</head>
+<body>
+  <div id="qunit"></div>
+  <div id="qunit-fixture"></div>
+</body>
+</html>

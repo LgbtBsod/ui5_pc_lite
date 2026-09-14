@@ -1,0 +1,226 @@
+<mvc:View
+  xmlns:mvc="sap.ui.core.mvc"
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core"
+  xmlns:f="sap.ui.layout.form"
+  controllerName="sap.pc_lite.lite.controller.Main"
+  displayBlock="true">
+
+  <App id="app">
+   <!-- [Fix UX, по просьбе] enableScrolling="false" — заголовок и навигатор
+        прогресса зафиксированы, скроллится только тело текущего шага (см.
+        appWizardScrollArea на шагах с таблицами) — не вся страница целиком.
+        (Более ранняя попытка того же самого выглядела сломанной из-за
+        отдельного, уже исправленного бага — битый CSS-комментарий рвал
+        парсинг файла стилей с середины; сам подход был верным.) -->
+   <Page id="page" title="{i18n>appTitle}" showHeader="true" enableScrolling="false"
+         class="appPage" showSubHeader="false">
+
+    <content>
+      <!-- [Поэтапный ввод — см. план] Пробовали sap.m.Wizard/WizardStep:
+           его собственный механизм "докуда дошли" (display:none на ещё не
+           достигнутых шагах, снятие которого завязано на встроенную кнопку
+           showNextButton) на практике не синхронизировался с прямым
+           nextStep()/previousStep() без неё — шаг логически становился
+           текущим, а его DOM так и оставался display:none. Вместо борьбы с
+           этим — два отдельных штатных контрола, каждый ровно за свою
+           задачу: WizardProgressNavigator — только полоса прогресса
+           наверху (полностью самостоятельный контрол, не требует Wizard),
+           NavContainer — ровно "один экран виден за раз", ровно то, что
+           нужно, встроенная анимация вперёд/назад, без самодельного
+           скрытия контента через visible-биндинги. Оба — та же sap.m,
+           что уже подключена, новых зависимостей нет. -->
+      <WizardProgressNavigator id="progressNav" class="appProgressNav"/>
+
+      <NavContainer id="stepNav" class="appStepNav">
+        <pages>
+
+          <Page id="pageWhen" showHeader="false" showFooter="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent">
+                <Text text="{i18n>wizStepWhen}" class="appStepHeading"/>
+                <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepWhenWhere" type="XML"/>
+              </VBox>
+            </content>
+          </Page>
+
+          <Page id="pagePeople" showHeader="false" showFooter="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent">
+                <Text text="{i18n>wizStepPeople}" class="appStepHeading"/>
+                <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepPeople" type="XML"/>
+              </VBox>
+            </content>
+          </Page>
+
+          <Page id="pageProfession" showHeader="false" showFooter="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent">
+                <Text text="{i18n>wizStepProfession}" class="appStepHeading"/>
+                <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepProfessionPk" type="XML"/>
+              </VBox>
+            </content>
+          </Page>
+
+          <!-- [Fix UX, по просьбе] enableScrolling="false" — заголовок шага
+               зафиксирован (appStepHeading), скроллится только сама таблица
+               ниже (appWizardScrollArea: flex:1 + overflow-y:auto). Базовым
+               полевым шагам это не нужно — там всё и так помещается без
+               скролла, лишний scroll-box там был бы просто пустой тратой. -->
+          <!-- [Fix РЕАЛЬНЫЙ БАГ, по видео пользователя] Кнопка "Добавить" раньше
+               жила в headerToolbar самой Table, ВНУТРИ appWizardScrollArea —
+               `sticky="HeaderToolbar"` у sap.m.Table расчитан на прилипание
+               к штатному скролл-контейнеру (Page/ObjectPage/ScrollContainer),
+               а не к произвольному div с overflow-y:auto через чистый CSS
+               (наш appWizardScrollArea) — на практике не прилипала вообще:
+               добавив 3-4 строки, приходилось скроллить обратно наверх, чтобы
+               нажать "Добавить" ещё раз (подтверждено live-тестом: scrollTop
+               уводит тулбар за пределы видимой области). Тулбар вынесен СЮДА,
+               выше appWizardScrollArea — теперь он часть зафиксированной
+               шапки шага (как и заголовок), гарантированно виден всегда,
+               независимо от того, сколько строк в таблице и куда прокручен
+               её собственный скролл. См. также ChecksTable/BarriersTable.fragment.xml
+               (headerToolbar убран оттуда) и style.css (.appWizardFixedToolbar). -->
+          <Page id="pageChecks" showHeader="false" showFooter="false" enableScrolling="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
+                <Text text="{i18n>tabChecks}" class="appStepHeading"/>
+                <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar">
+                  <ToolbarSpacer/>
+                  <Button icon="sap-icon://add" text="{i18n>btnAdd}" press="onAddCheckRow"
+                          type="Emphasized" tooltip="{i18n>ttAddRow}" class="appToolbarBtn"/>
+                </Toolbar>
+                <VBox class="appWizardScrollArea">
+                  <core:Fragment fragmentName="sap.pc_lite.lite.fragment.ChecksTable" type="XML"/>
+                </VBox>
+              </VBox>
+            </content>
+          </Page>
+
+          <!-- Видимость самой таблицы барьеров управляется formatter.isBarriersAllowed
+               по formModel>/PkLevel (см. BarriersTable.fragment.xml; [Fix
+               РЕАЛЬНЫЙ БАГ, аудит] — раньше хранимым флагом
+               formModel>/BarriersAllowed, см. подробное обоснование у
+               formatter.js#isBarriersAllowed) — на уровне КПР-0/1 здесь
+               показывается только пояснение. Тулбар "Добавить" повторяет ту
+               же видимость (нет смысла показывать "Добавить" к скрытой
+               таблице) — см. комментарий у pageChecks выше про сам перенос. -->
+          <Page id="pageBarriers" showHeader="false" showFooter="false" enableScrolling="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
+                <Text text="{i18n>tabBarriers}" class="appStepHeading"/>
+                <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar"
+                         visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersAllowed'}">
+                  <ToolbarSpacer/>
+                  <Button icon="sap-icon://add" text="{i18n>btnAdd}" press="onAddBarrierRow"
+                          type="Emphasized" tooltip="{i18n>ttAddRow}" class="appToolbarBtn"/>
+                </Toolbar>
+                <VBox class="appWizardScrollArea">
+                  <core:Fragment fragmentName="sap.pc_lite.lite.fragment.BarriersTable" type="XML"/>
+                </VBox>
+              </VBox>
+            </content>
+          </Page>
+
+          <!-- [Fix UX, по просьбе] Отправить — в footer (см. ниже), отдельный
+               финальный экран показывает только сводку введённого для
+               проверки перед отправкой (те же formModel-поля, что уже
+               заполнены на предыдущих экранах, read-only). -->
+          <Page id="pageSubmit" showHeader="false" showFooter="false" class="appStepPage">
+            <content>
+              <VBox class="appContent appWizardStepContent appWizardSubmitStep">
+                <Text text="{i18n>wizStepSubmit}" class="appStepHeading"/>
+                <Text text="{i18n>hintSubmitStep}" class="appWizardSubmitHint"/>
+
+                <Panel expandable="false" width="100%" class="appCard">
+                  <f:SimpleForm editable="false" layout="ResponsiveGridLayout"
+                                columnsL="2" columnsM="2" columnsXL="2"
+                                singleContainerFullSize="true" class="appForm">
+                    <f:content>
+                      <Label text="{i18n>lblInspected}" class="appLabel"/>
+                      <Text text="{formModel>/InspectedFullname}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblInspector}" class="appLabel"/>
+                      <Text text="{formModel>/InspectorFullname}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblCheckDate}" class="appLabel"/>
+                      <Text text="{path:'formModel>/CheckDate', formatter:'.formatter.displayDate'}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblCheckTime}" class="appLabel"/>
+                      <Text text="{formModel>/CheckTime}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblLocation}" class="appLabel"/>
+                      <Text text="{formModel>/LocationPath}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblPkLevel}" class="appLabel"/>
+                      <Text text="{parts:[{path:'dictionaryModel>/_index/PKLEVEL'},{path:'formModel>/PkLevel'}], formatter:'.formatter.dictText'}"
+                            class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblProfession}" class="appLabel"/>
+                      <Text text="{parts:[{path:'dictionaryModel>/_index/PROFESSION'},{path:'formModel>/Profession'}], formatter:'.formatter.dictText'}"
+                            class="appSummaryValue"/>
+
+                      <!-- [Fix РЕАЛЬНЫЙ БАГ, дизайн-ревью] Оборудование
+                           заполняется на шаге 3, но нигде не попадало в
+                           сводку перед отправкой — пользователь не мог его
+                           здесь проверить, хотя все остальные поля формы
+                           показаны. Необязательное поле — строка целиком
+                           скрыта, если пусто (SimpleForm сворачивает
+                           form element, когда все его контролы invisible),
+                           а не показывает пустое значение под подписью. -->
+                      <Label text="{i18n>lblEquipment}" class="appLabel" visible="{= !!${formModel>/Equipment} }"/>
+                      <Text text="{formModel>/Equipment}" class="appSummaryValue" visible="{= !!${formModel>/Equipment} }"/>
+
+                      <!-- [Fix UX, по запросу] Количество проверок/барьеров —
+                           теперь строками той же сводки, что и остальные поля,
+                           а не отдельным текстом под карточкой (см. ниже —
+                           старый wizardModel>/countsSummary убран, дублировал
+                           то же самое, что и footerStatus, второй раз на
+                           экране). checksModel>/items.length — то же самое
+                           число, что считает RowsAndAutoFill.js#_updateFooterCount
+                           для footerStatus, просто прочитано напрямую
+                           биндингом, без второго места, дублирующего подсчёт.
+                           "Если они есть" — строка скрыта при 0 (пустая
+                           проверка/пустой барьер не показывается сводкой,
+                           как и Оборудование выше). -->
+                      <Label text="{i18n>lblChecksCount}" class="appLabel" visible="{= ${checksModel>/items}.length > 0 }"/>
+                      <Text text="{= ${checksModel>/items}.length }" class="appSummaryValue" visible="{= ${checksModel>/items}.length > 0 }"/>
+
+                      <Label text="{i18n>lblBarriersCount}" class="appLabel" visible="{= ${barriersModel>/items}.length > 0 }"/>
+                      <Text text="{= ${barriersModel>/items}.length }" class="appSummaryValue" visible="{= ${barriersModel>/items}.length > 0 }"/>
+                    </f:content>
+                  </f:SimpleForm>
+                </Panel>
+              </VBox>
+            </content>
+          </Page>
+
+        </pages>
+      </NavContainer>
+    </content>
+
+    <!-- [Fix UX, по просьбе] "Назад"/"Далее"/"Отправить" — общие кнопки в
+         footer, не по одной на каждый экран. -->
+    <footer>
+      <OverflowToolbar class="appFooter">
+        <ObjectStatus id="footerStatus" text=""
+                      class="appFooterStatus" icon="sap-icon://list"/>
+        <ToolbarSpacer/>
+        <Button text="{i18n>btnBack}" icon="sap-icon://arrow-left"
+                press="onWizardBack" class="appWizardBackBtn"
+                visible="{= ${wizardModel>/currentStep} > 1 }"/>
+        <!-- [Fix SSOT, аудит] /totalSteps (model/WizardSteps.js через ModelsInit)
+             вместо литерала "6" — единственное число шагов теперь не
+             рассинхронится с реальным списком страниц NavContainer. -->
+        <Button text="{i18n>btnNext}" type="Emphasized" icon="sap-icon://arrow-right" iconFirst="false"
+                press="onWizardNext" class="appBtnPrimary appWizardNextBtn"
+                visible="{= ${wizardModel>/currentStep} !== ${wizardModel>/totalSteps} }"/>
+        <Button id="submitBtn" text="{i18n>btnSubmit}" icon="sap-icon://paper-plane" type="Emphasized"
+                press="onSubmit" class="appBtnSubmit"
+                visible="{= ${wizardModel>/currentStep} === ${wizardModel>/totalSteps} }"/>
+      </OverflowToolbar>
+    </footer>
+
+   </Page>
+  </App>
+</mvc:View>

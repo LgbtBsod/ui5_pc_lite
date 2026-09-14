@@ -1,0 +1,11 @@
+{
+  "d": {
+    "results": [
+      { "ProfessionCode": "ELECTRICIAN", "ProfessionText": "Электромонтёр" },
+      { "ProfessionCode": "OPERATOR", "ProfessionText": "Оператор" },
+      { "ProfessionCode": "LOCKSMITH", "ProfessionText": "Слесарь" },
+      { "ProfessionCode": "SAFETY_ENGINEER", "ProfessionText": "Инженер по ОТ" },
+      { "ProfessionCode": "SAFETY_SPECIALIST", "ProfessionText": "Специалист по ОТ" }
+    ]
+  }
+}

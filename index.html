@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Формирование проверок и барьеров по КПР</title>
+
+  <script id="sap-ui-bootstrap"
+          src="https://ui5.sap.com/1.71.84/resources/sap-ui-core.js"
+          data-sap-ui-libs="sap.m,sap.ui.layout,sap.ui.core"
+          data-sap-ui-theme="sap_horizon"
+          data-sap-ui-compatVersion="edge"
+          data-sap-ui-async="true"
+          data-sap-ui-preload="async"
+          data-sap-ui-resourceroots='{"sap.pc_lite.lite": "./"}'
+          data-sap-ui-language="ru">
+  </script>
+
+  <!-- style.css и third-party JS декларируются в manifest.json
+       (sap.ui5/resources) и загружаются компонентом — и в FLP, и standalone.
+       Дублирующий <link> здесь означал бы двойную загрузку. -->
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { background: #f5f6f7; font-family: "72", "72full", Arial, Helvetica, sans-serif; }
+    #sapui5-root { height: 100vh; }
+    #splash {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #f5f6f7; color: #1d2d3e;
+      font-family: "72", Arial, sans-serif;
+      z-index: 9999;
+    }
+    #splash .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #0070f2;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+    #splash .label { font-size: 14px; color: #556b82; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="splash">
+    <div class="spinner"></div>
+    <div class="label">Загрузка приложения…</div>
+  </div>
+  <div id="sapui5-root"></div>
+
+  <script>
+    (function () {
+      "use strict";
+      var splash = document.getElementById("splash");
+
+      function hideSplash() {
+        if (splash && splash.parentNode) {
+          splash.parentNode.removeChild(splash);
+        }
+      }
+
+      setTimeout(hideSplash, 8000);
+
+      sap.ui.getCore().attachInit(function () {
+        sap.ui.require(
+          ["sap/pc_lite/lite/MockServerBootstrap", "sap/ui/core/ComponentContainer"],
+          function (MSBoot, ComponentContainer) {
+            // [Fix] start() асинхронный (читает manifest.json — см.
+            // MockServerBootstrap.js) — ComponentContainer создаётся только
+            // ПОСЛЕ того, как MockServer начал перехватывать XHR, иначе
+            // первый OData-запрос компонента уходит в реальную сеть.
+            MSBoot.start().then(function () {
+              new ComponentContainer({
+                name: "sap.pc_lite.lite",
+                manifest: true,
+                async: true,
+                height: "100%"
+              }).placeAt("sapui5-root");
+              setTimeout(hideSplash, 600);
+            });
+          },
+          function (err) {
+            console.error("[pc_lite] sap.ui.require FAILED:", err);
+            hideSplash();
+          }
+        );
+      });
+    })();
+  </script>
+</body>
+</html>

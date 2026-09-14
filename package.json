@@ -1,0 +1,14 @@
+{
+  "name": "pc-lite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SAPUI5 1.71 LTS freestyle app — формирование проверок и барьеров по КПР",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "node -e \"console.log('Open test/unit/unitTests.qunit.html (or test/testsuite.qunit.html) in a browser to run the pc_lite unit tests. No headless runner (karma/etc.) is wired up yet — kept the tooling footprint minimal, consistent with this project having no bundler/build step beyond eslint.')\""
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

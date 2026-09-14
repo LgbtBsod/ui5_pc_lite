@@ -1,0 +1,145 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+
+  <!-- [Fix UX, по просьбе] Без Panel-карточки — таблица и так насыщена
+       текстом в ячейках, рамка карточки только отъедала ширину под неё. -->
+  <!-- [Fix РЕАЛЬНЫЙ БАГ, по видео пользователя] headerToolbar с "Добавить" и
+       sticky отсюда убраны — см. подробный комментарий у pageChecks в
+       Main.view.xml. sticky="HeaderToolbar" не прилипал внутри нашего
+       кастомного appWizardScrollArea (overflow-y:auto на обычном VBox, а не
+       штатный скролл-контейнер, который sticky распознаёт) — кнопка
+       "Добавить" теперь в зафиксированной части шага, вне этой таблицы. -->
+  <Table id="checksTable"
+           items="{path:'checksModel>/items', parameters:{templateShareable:true}}"
+           mode="Delete"
+           delete="onChecksDelete"
+           class="appTable"
+           noDataText="{i18n>msgNoRowsChecks}">
+      <columns>
+        <Column width="40%" minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colCheck}"/>
+        </Column>
+        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colComment}"/>
+        </Column>
+        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colResult}"/>
+        </Column>
+        <!-- [Поля несоответствия, по запросу] Активны (enabled) только когда
+             Результат строки — явно выбранное "Неудовлетворительно" (см.
+             model/BusinessRules.js#isUnsatisfactoryResult) — не когда
+             результат просто ещё не выбран. Существуют в таблице всегда
+             (не visible-переключение) — так пользователь видит поля СРАЗУ,
+             как только меняет Результат, без "куда делись поля" эффекта. -->
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, дизайн-ревью] minScreenWidth="Desktop" (не
+             "Tablet", как у трёх колонок выше) — намеренная асимметрия, не
+             недосмотр. С добавлением этих двух колонок стало 5 колонок
+             вместо 3: на ширине планшета (~768px) первая колонка забирает
+             40%, а Комментарий/Результат/Описание/Место делят оставшиеся
+             60% ПОРОВНУ — на практике ~99px на колонку (проверено живьём),
+             заголовок "ОПИСАНИЕ НЕСООТВЕТСТВИЯ" при такой ширине переносится
+             на 3-4 строки, сама ячейка становится непригодной для ввода
+             текста. minScreenWidth="Desktop" держит эти две колонки
+             свёрнутыми в popin-блок (как остальные три уже сворачиваются на
+             телефоне) вплоть до реально широкого экрана — Проверка/
+             Комментарий/Результат на планшете получают комфортные ~33% каждая
+             вместо тесных ~20%. -->
+        <Column minScreenWidth="Desktop" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colNonConformityDescription}"/>
+        </Column>
+        <Column minScreenWidth="Desktop" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colNonConformityLocation}"/>
+        </Column>
+      </columns>
+      <items>
+        <ColumnListItem>
+          <cells>
+            <!-- [Fix UX, по видео пользователя] Раньше здесь был Input
+                 (valueHelpOnly=true) — но sap.m.Table mode="Delete" всегда
+                 резервирует отдельную колонку под "Удалить" в ЭТОЙ ЖЕ строке
+                 (штатное поведение, не наша разметка), и на телефоне
+                 оставшейся ширины хватало не всегда: выбранный текст
+                 проверки обрезался с "…", а Input физически не умеет
+                 переносить текст на вторую строку (однострочный контрол по
+                 определению) — сколько ширины ни давай через CSS, длинное
+                 значение всё равно резалось бы. Link.wrapping=true — то же
+                 решение "переносить, не обрезать", что уже применено к
+                 диалогу выбора (см. DictValueHelp.fragment.xml/style.css),
+                 только для контрола, который умеет переноситься сам —
+                 полный текст виден весь. Press ведёт на тот же
+                 onCheckValueHelp, что раньше valueHelpRequest у Input. -->
+            <!-- [Fix, живой тест] class="{= ... }" и class="{path,formatter}" —
+                 ОБЕ формы биндинга на атрибут class молча не срабатывали
+                 (class в XMLView 1.71 — не настоящий property ManagedObject,
+                 в отличие от text/visible; подтверждено live-тестом дважды).
+                 Рабочий, уже используемый в этом же проекте приём — два
+                 контрола со статичным (небиндящимся) class и visible-
+                 переключением между ними, тот же паттерн, что и везде в
+                 этом приложении (Barriers/кнопки footer и т.д.). -->
+            <!-- [Fix РЕАЛЬНЫЙ БАГ, найдено независимым ревью] Комментарий
+                 выше раньше утверждал "тап в любом месте строки, не только
+                 по иконке" — неправда: decorative="true" у core:Icon без
+                 press делал иконку мёртвой зоной (тап именно по ней не
+                 открывал VH, в отличие от старого Input, где иконка была
+                 частью единой кликабельной поверхности). press здесь же и
+                 decorative="false" — иконка больше не только визуальная
+                 подсказка, а такая же часть кликабельной области, как Link. -->
+            <HBox class="appCellCodePicker">
+              <Link text="{checksModel>CheckText}"
+                    wrapping="true"
+                    press="onCheckValueHelp"
+                    visible="{= !!${checksModel>CheckText} }"
+                    class="appCellCodeLinkFilled"/>
+              <Link text="{i18n>phCodeSelect}"
+                    wrapping="true"
+                    press="onCheckValueHelp"
+                    visible="{= !${checksModel>CheckText} }"
+                    class="appCellCodeLinkPlaceholder"/>
+              <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] tooltip — та же дисциплина, что
+                   уже применена к "Добавить" (ttAddRow) и стрелке "вложенные
+                   элементы" (ttLocationDrillIn) в этом же проекте; была
+                   единственной icon-only pressable-иконкой без него. -->
+              <core:Icon src="sap-icon://value-help" decorative="false" press="onCheckValueHelp" tooltip="{i18n>ttCodeSelect}" class="appCellCodeVhIcon"/>
+            </HBox>
+            <!-- [Fix SSOT] maxLength — constraintsModel (EntityConfig.CONSTRAINTS),
+                 единственный источник, зеркалящий CheckItem.Comment MaxLength="2000"
+                 из metadata.xml, вместо независимого литерала здесь. -->
+            <TextArea value="{checksModel>Comment}" placeholder="{i18n>phComment}" width="100%"
+                      rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/CommentMaxLength}"
+                      class="appCellTextArea"/>
+            <!-- [Fix Memory/Perf] Факторная привязка вместо items+templateShareable:
+                 этот ComboBox сам находится ВНУТРИ шаблона строки Table (шаблон в
+                 шаблоне) — обнаружено бизнес-тестированием: клонирование внешнего
+                 ColumnListItem-шаблона не всегда корректно пробрасывает
+                 templateShareable на ВЛОЖЕННый items-биндинг ComboBox в SAPUI5 1.71
+                 ("During a clone operation, a template was found that neither was
+                 marked with 'templateShareable:true' nor 'templateShareable:false'"
+                 в консоли — framework не уничтожает шаблон, риск утечки памяти при
+                 многократном add/delete строк). Фабрика (statusItemFactory) создаёт
+                 Item заново на каждый вызов вместо клонирования общего шаблона —
+                 сценарий, для которого factory и предназначен в списковых
+                 агрегациях, полностью убирает двусмысленность клонирования. -->
+            <ComboBox selectedKey="{checksModel>Status}"
+                      items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
+                      width="100%" class="appCellComboBox"/>
+            <!-- [Поля несоответствия, по запросу] enabled — formatter, не
+                 expression binding: expression binding на enabled работает
+                 (в отличие от class, см. выше) — формуттер здесь только
+                 чтобы не дублировать сам код "Неудовлетворительно" (" ")
+                 инлайн ещё и в XML третьим местом, читает его из
+                 BusinessRules ОДИН раз. -->
+            <TextArea value="{checksModel>NonConformityDescription}" placeholder="{i18n>phNonConformityDescription}" width="100%"
+                      rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/NonConformityDescriptionMaxLength}"
+                      enabled="{path:'checksModel>Status', formatter:'.formatter.isUnsatisfactoryResult'}"
+                      class="appCellTextArea"/>
+            <Input value="{checksModel>NonConformityLocation}" placeholder="{i18n>phNonConformityLocation}" width="100%"
+                   maxLength="{constraintsModel>/NonConformityLocationMaxLength}"
+                   enabled="{path:'checksModel>Status', formatter:'.formatter.isUnsatisfactoryResult'}"
+                   class="appCellInputField"/>
+          </cells>
+        </ColumnListItem>
+      </items>
+  </Table>
+
+</core:FragmentDefinition>

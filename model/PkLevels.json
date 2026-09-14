@@ -1,0 +1,11 @@
+{
+  "d": {
+    "results": [
+      { "PkLevel": "0", "PkLevelText": "КПР-0" },
+      { "PkLevel": "1", "PkLevelText": "КПР-1" },
+      { "PkLevel": "2", "PkLevelText": "КПР-2" },
+      { "PkLevel": "3", "PkLevelText": "КПР-3" },
+      { "PkLevel": "4", "PkLevelText": "КПР-4" }
+    ]
+  }
+}

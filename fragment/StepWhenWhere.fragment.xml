@@ -1,0 +1,68 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:f="sap.ui.layout.form"
+  xmlns:core="sap.ui.core">
+
+  <!-- [Fix UX, по просьбе] Без Panel-карточки — заголовок шага уже даёт
+       WizardStep/title в Main.view.xml, а обёрнутая рамка вокруг короткой
+       формы только съедала ширину и оставляла пустое место внутри карточки
+       ниже последнего поля. Форма лежит прямо на фоне шага. -->
+  <f:SimpleForm id="whenWhereForm"
+                  editable="true"
+                  layout="ResponsiveGridLayout"
+                  columnsL="2" columnsM="2" columnsXL="3"
+                  singleContainerFullSize="true"
+                  class="appForm">
+      <f:content>
+        <!-- [Fix SSOT] valueFormat — constraintsModel (EntityConfig.CONSTRAINTS),
+             тот же паттерн, что использует util/ODataFormat.js для парсинга,
+             вместо независимой строки "yyyy-MM-dd"/"HH:mm:ss" здесь.
+             [Fix SSOT, аудит] displayFormat тоже — constraintsModel>/DisplayDateFormat,
+             тот же паттерн, что formatter.js#displayDate использует для той же
+             колонки на шаге "Отправка" (см. Main.view.xml), вместо независимого
+             литерала "dd.MM.yyyy" в двух местах. -->
+        <Label text="{i18n>lblCheckDate}" labelFor="checkDate" class="appLabel"/>
+        <DatePicker id="checkDate" value="{formModel>/CheckDate}"
+                    valueFormat="{constraintsModel>/DateValueFormat}" displayFormat="{constraintsModel>/DisplayDateFormat}" width="100%"
+                    class="appInput"/>
+
+        <Label text="{i18n>lblCheckTime}" labelFor="checkTime" class="appLabel"/>
+        <TimePicker id="checkTime" value="{formModel>/CheckTime}"
+                    valueFormat="{constraintsModel>/TimeValueFormat}" displayFormat="HH:mm:ss" width="100%"
+                    class="appInput"/>
+
+        <Label text="{i18n>lblTimeZone}" labelFor="timeZone" class="appLabel"/>
+        <ComboBox id="timeZone" selectedKey="{formModel>/TimeZone}"
+                  items="{path:'dictionaryModel>/TIMEZONE', parameters:{templateShareable:true}}" width="100%" class="appInput">
+          <core:Item key="{dictionaryModel>Code}" text="{dictionaryModel>Text}" />
+        </ComboBox>
+
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] liveChange="onLocationTextLiveChange" —
+             тот же приём, что уже применён к ФИО (см. PersonSearch.js#
+             onPersonLiveChange): formModel>/LocationText физически можно
+             редактировать руками ПОСЛЕ выбора из диалога (это обычный
+             двусторонне-биндленный Input, а не valueHelpOnly), и до этого
+             фикса ничто не сбрасывало formModel>/LocationUUID при таком
+             редактировании — payload уходил бы с валидным UUID, но текстом,
+             больше ему не соответствующим. maxLength — constraintsModel
+             (EntityConfig.CONSTRAINTS), тот же SSOT-приём, что уже
+             используют Equipment/Comment, зеркалит LocationName
+             MaxLength="100" из metadata.xml. -->
+        <Label text="{i18n>lblLocation}" labelFor="locationInput" class="appLabel"/>
+        <VBox class="appLocationVBox">
+          <Input id="locationInput"
+                 value="{formModel>/LocationText}"
+                 liveChange="onLocationTextLiveChange"
+                 maxLength="{constraintsModel>/LocationNameMaxLength}"
+                 placeholder="{i18n>phLocationSelect}"
+                 showValueHelp="true"
+                 valueHelpRequest="onLocationValueHelp"
+                 width="100%" class="appInput"/>
+          <Text id="locationPath" text="{formModel>/LocationPath}"
+                class="appLocationPath" wrapping="true"
+                visible="{= !!${formModel>/LocationPath} }"/>
+        </VBox>
+      </f:content>
+  </f:SimpleForm>
+
+</core:FragmentDefinition>

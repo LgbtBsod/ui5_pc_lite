@@ -1,0 +1,21 @@
+{
+  "_comment": "ЧЕРНОВИК. Правило видимости строк для авто-добавления (facade/DictionaryFacade.js#getAutoRowsForPk), не финальная бизнес-логика — точный список ждёт сверки. КПР-0 ('общее') — ничего. КПР 1-4 — 'проверка знаний' (TRAINING_VERIFY, уже есть в CheckTypes.json) + 'оценка уровня КПР-1 от текущего' (PK_ASSESS_0..3, новые черновые коды в CheckTypes.json, один на предыдущий уровень). Барьеры — один пример (SAFETY_FENCE) на уровнях, где барьеры вообще разрешены (см. model/BusinessRules.js), чтобы показать, что механизм одинаково работает и для Checks, и для Barriers.",
+  "d": {
+    "results": [
+      { "PkLevel": "1", "Type": "Checks", "Code": "TRAINING_VERIFY" },
+      { "PkLevel": "1", "Type": "Checks", "Code": "PK_ASSESS_0" },
+
+      { "PkLevel": "2", "Type": "Checks", "Code": "TRAINING_VERIFY" },
+      { "PkLevel": "2", "Type": "Checks", "Code": "PK_ASSESS_1" },
+      { "PkLevel": "2", "Type": "Barriers", "Code": "SAFETY_FENCE" },
+
+      { "PkLevel": "3", "Type": "Checks", "Code": "TRAINING_VERIFY" },
+      { "PkLevel": "3", "Type": "Checks", "Code": "PK_ASSESS_2" },
+      { "PkLevel": "3", "Type": "Barriers", "Code": "SAFETY_FENCE" },
+
+      { "PkLevel": "4", "Type": "Checks", "Code": "TRAINING_VERIFY" },
+      { "PkLevel": "4", "Type": "Checks", "Code": "PK_ASSESS_3" },
+      { "PkLevel": "4", "Type": "Barriers", "Code": "SAFETY_FENCE" }
+    ]
+  }
+}

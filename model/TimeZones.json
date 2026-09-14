@@ -1,0 +1,15 @@
+{
+  "d": {
+    "results": [
+      { "TimeZoneCode": "Europe/Moscow", "TimeZoneText": "Москва (UTC+3)" },
+      { "TimeZoneCode": "Asia/Yekaterinburg", "TimeZoneText": "Екатеринбург (UTC+5)" },
+      { "TimeZoneCode": "Asia/Novosibirsk", "TimeZoneText": "Новосибирск (UTC+7)" },
+      { "TimeZoneCode": "Asia/Vladivostok", "TimeZoneText": "Владивосток (UTC+10)" },
+      { "TimeZoneCode": "Asia/Yerevan", "TimeZoneText": "Ереван (UTC+4)" },
+      { "TimeZoneCode": "Europe/Minsk", "TimeZoneText": "Минск (UTC+3)" },
+      { "TimeZoneCode": "Asia/Almaty", "TimeZoneText": "Алма-Ата (UTC+6)" },
+      { "TimeZoneCode": "Asia/Tashkent", "TimeZoneText": "Ташкент (UTC+5)" },
+      { "TimeZoneCode": "UTC", "TimeZoneText": "UTC (UTC+0)" }
+    ]
+  }
+}

@@ -1,0 +1,69 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:f="sap.ui.layout.form"
+  xmlns:core="sap.ui.core"
+  xmlns:data="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
+
+  <!-- [Fix UX, по просьбе] Без Panel-карточки — см. StepWhenWhere.fragment.xml. -->
+  <f:SimpleForm id="peopleForm"
+                  editable="true"
+                  layout="ResponsiveGridLayout"
+                  columnsL="2" columnsM="2" columnsXL="3"
+                  singleContainerFullSize="true"
+                  class="appForm">
+      <f:content>
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, дизайн-ревью] Длинное ФИО (двойная фамилия,
+             отчество) обрезается framework'ом внутри однострочного Input
+             без всякого намёка, что дальше ещё что-то есть — включая
+             табельный номер в скобках на конце значения, единственный
+             ОДНОЗНАЧНЫЙ идентификатор человека. В таблице Checks/Barriers
+             та же категория проблемы уже решена переходом на Link.wrapping
+             (см. ChecksTable.fragment.xml) — здесь Input не заменить (нужен
+             живой ввод для поиска), поэтому вместо этого — подпись с
+             табельным номером ПОД полем, тот же приём, что уже применён к
+             Местоположению (locationPath ниже показывает полный путь под
+             обрезающимся Input) — тот номер виден всегда целиком, даже когда
+             само поле обрезало отображаемое имя. -->
+        <Label text="{i18n>lblInspected}" labelFor="inspectedInput" class="appLabel"/>
+        <VBox class="appLocationVBox">
+          <Input id="inspectedInput"
+                 value="{formModel>/InspectedFullname}"
+                 placeholder="{i18n>phPersonSearch}"
+                 showSuggestion="true"
+                 suggestionItems="{path:'inspectedPersonModel>/items', parameters:{templateShareable:true}}"
+                 liveChange="onPersonLiveChange"
+                 suggestionItemSelected="onInspectedSelected"
+                 class="appInput"
+                 data:role="inspected">
+            <suggestionItems>
+              <core:Item text="{inspectedPersonModel>Fullname}" key="{inspectedPersonModel>Pernr}" />
+            </suggestionItems>
+          </Input>
+          <Text text="{= ${i18n>lblPernrPrefix} + ': ' + ${formModel>/InspectedPernr} }"
+                class="appLocationPath"
+                visible="{= !!${formModel>/InspectedPernr} }"/>
+        </VBox>
+
+        <Label text="{i18n>lblInspector}" labelFor="inspectorInput" class="appLabel"/>
+        <VBox class="appLocationVBox">
+          <Input id="inspectorInput"
+                 value="{formModel>/InspectorFullname}"
+                 placeholder="{i18n>phPersonSearch}"
+                 showSuggestion="true"
+                 suggestionItems="{path:'inspectorPersonModel>/items', parameters:{templateShareable:true}}"
+                 liveChange="onPersonLiveChange"
+                 suggestionItemSelected="onInspectorSelected"
+                 class="appInput"
+                 data:role="inspector">
+            <suggestionItems>
+              <core:Item text="{inspectorPersonModel>Fullname}" key="{inspectorPersonModel>Pernr}" />
+            </suggestionItems>
+          </Input>
+          <Text text="{= ${i18n>lblPernrPrefix} + ': ' + ${formModel>/InspectorPernr} }"
+                class="appLocationPath"
+                visible="{= !!${formModel>/InspectorPernr} }"/>
+        </VBox>
+      </f:content>
+  </f:SimpleForm>
+
+</core:FragmentDefinition>

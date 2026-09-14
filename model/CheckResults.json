@@ -1,0 +1,9 @@
+{
+  "_comment": "[Fix РЕАЛЬНЫЙ БАГ, по аналогии с redux] ResultCode 'Неудовлетворительно' раньше был пустой строкой \"\" — неотличимо от 'строка ещё не заполнена' (ModelsInit.emptyRow даёт Status:\"\" по умолчанию). Один пробел \" \" — тот же abap_false-приём, что уже применён в redux (serve_config.py@aed576f2, RESULT_CODE_UNSATISFACTORY: там это чинило баг SmartField-валидации, здесь — ту же путаницу 'не заполнено' vs 'заполнено явным неудовлетворительно' в JS: \"\" ложно, \" \" истинно). См. model/BusinessRules.js#UNSATISFACTORY_RESULT_CODE — единственное место в pc_lite, где это значение захардкожено.",
+  "d": {
+    "results": [
+      { "ResultCode": "X", "ResultText": "Удовлетворительно" },
+      { "ResultCode": " ", "ResultText": "Неудовлетворительно" }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "d": {
+    "results": [
+      { "BarrierTypeCode": "SAFETY_FENCE", "BarrierTypeText": "Защитное ограждение", "Category": "Физические", "PkLevels": "0,1,2,3,4" },
+      { "BarrierTypeCode": "WARNING_SIGN", "BarrierTypeText": "Предупреждающий знак", "Category": "Физические", "PkLevels": "0,1,2,3,4" },
+      { "BarrierTypeCode": "LOCKOUT_TAGOUT", "BarrierTypeText": "Блокировка/бирка (LOTO)", "Category": "Процедурные", "PkLevels": "2,3,4" },
+      { "BarrierTypeCode": "GUARD_RAIL", "BarrierTypeText": "Перильное ограждение", "Category": "Физические", "PkLevels": "3,4" },
+      { "BarrierTypeCode": "EMERGENCY_STOP", "BarrierTypeText": "Аварийный стоп", "Category": "Физические", "PkLevels": "2,3,4" },
+      { "BarrierTypeCode": "ACCESS_CONTROL", "BarrierTypeText": "Контроль доступа", "Category": "Процедурные", "PkLevels": "3,4" },
+      { "BarrierTypeCode": "FIRE_SUPPRESSION", "BarrierTypeText": "Система пожаротушения", "Category": "Физические", "PkLevels": "4" },
+      { "BarrierTypeCode": "GAS_DETECT", "BarrierTypeText": "Детектор газа", "Category": "Физические", "PkLevels": "4" }
+    ]
+  }
+}

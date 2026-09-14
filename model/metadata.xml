@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<edmx:Edmx Version="1.0"
+           xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx"
+           xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata"
+           xmlns:sap="http://www.sap.com/Protocols/SAPData">
+  <edmx:DataServices m:DataServiceVersion="2.0">
+    <Schema Namespace="ZCheckService" xml:lang="ru-RU"
+            xmlns="http://schemas.microsoft.com/ado/2008/09/edm">
+
+      <!-- [Архитектурное решение] Отдельный SEGW-сервис для лайта
+           (ZCHECK_LITE_SRV, отдельные DPC/MPC), НЕ ZCHECK_SRV — те же
+           DB-таблицы (zchk_root/zchk_basic/zchk_item/zchk_barr), что и у
+           полной версии, но простой instant-create БЕЗ draft/BOPF вообще.
+           Полная версия (redux) осталась на ZCHECK_SRV с
+           ActiveUUID/DraftUUID-адресацией (см. redux/localService/
+           metadata.xml) — совмещать instant-create лайта с draft-контрактом
+           полной версии сочли неоправданной сложностью для сценария лайта
+           (одна форма, один сабмит, никакого draft/edit-цикла). CheckBasics
+           не включена как отдельная сущность: Basic-proxy поля пишутся
+           клиентом прямо на CheckRoot. -->
+      <EntityType Name="CheckRoot" sap:label="Проверка">
+        <Key>
+          <PropertyRef Name="RootId"/>
+        </Key>
+        <Property Name="RootId"               Type="Edm.String" Nullable="false" MaxLength="36" sap:label="ID заголовка" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="DocId"                Type="Edm.String" MaxLength="10" sap:label="№ документа" sap:creatable="false" sap:updatable="false"/>
+
+        <Property Name="Date"          Type="Edm.DateTime" Nullable="false" sap:display-format="Date" sap:label="Дата проверки"/>
+        <Property Name="Time"          Type="Edm.Time" Nullable="false" sap:label="Время проверки"/>
+        <Property Name="Timezone"      Type="Edm.String" Nullable="false" MaxLength="50" sap:label="Часовой пояс" sap:text="TimezoneText"/>
+        <Property Name="TimezoneText"  Type="Edm.String" Nullable="false" MaxLength="100" sap:label="Часовой пояс"/>
+        <Property Name="LocationKey"   Type="Edm.String" MaxLength="36" sap:label="Местоположение" sap:text="LocationName"/>
+        <Property Name="LocationName"  Type="Edm.String" MaxLength="100" sap:label="Местоположение"/>
+        <Property Name="Equipment"     Type="Edm.String" MaxLength="100" sap:label="Оборудование"/>
+        <Property Name="ObserverFullname" Type="Edm.String" Nullable="false" MaxLength="100" sap:label="ФИО инспектора"/>
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] Было "ObserverPerner"/"ObservedPerner" —
+             опечатка на одну букву ("e" вместо "r" в конце): у redux
+             (localService/metadata.xml) и в реальной DDIC-таблице ZCHK_BASIC
+             (OBSERVER_PERNR/OBSERVED_PERNR) то же самое поле называется
+             ObserverPernr/ObservedPernr. Опечатка жила только в самом
+             pc_lite (metadata.xml + facade/DeepEntityFacade.js — 2 файла,
+             не 13, как изначально предположил аудит: FormValidator.js/
+             Submit.js/i18n везде используют корректное внутреннее имя
+             Pernr, опечатка была только на границе OData-контракта).
+             Исправлено сейчас, пока мок — единственный потребитель, до
+             того как под это заведут настоящий ABAP DPC_EXT. -->
+        <Property Name="ObserverPernr"    Type="Edm.String" MaxLength="8" sap:label="Табельный № инспектора"/>
+        <Property Name="ObservedFullname" Type="Edm.String" Nullable="false" MaxLength="100" sap:label="ФИО проверяемого"/>
+        <Property Name="ObservedPernr"    Type="Edm.String" MaxLength="8" sap:label="Табельный № проверяемого"/>
+        <Property Name="LpcKey"        Type="Edm.String" MaxLength="10" sap:label="Уровень КПР" sap:text="LpcText"/>
+        <Property Name="LpcText"       Type="Edm.String" Nullable="false" MaxLength="100" sap:label="Уровень КПР"/>
+        <Property Name="ProfKey"       Type="Edm.String" MaxLength="50" sap:label="Профессия" sap:text="ProfText"/>
+        <Property Name="ProfText"      Type="Edm.String" Nullable="false" MaxLength="100" sap:label="Профессия"/>
+
+        <Property Name="Status"                Type="Edm.String" MaxLength="20" sap:label="Статус" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="ThisIsIntegrationData" Type="Edm.Boolean" Nullable="false" sap:label="Создано интеграцией" sap:creatable="false" sap:updatable="false"/>
+        <!-- [По запросу] Зеркало redux/localService/metadata.xml — там Updatable
+             приводит в действие sap:updatable-path/sap:deletable-path на
+             EntitySet CheckRoots (см. ниже) и UI.Updatable/UI.Deletable в
+             check-root.xml, чем и управляется доступность кнопки
+             "Редактировать" в generic-template object page (resolvers.py:
+             Updatable = not ThisIsIntegrationData — запись из интеграции
+             нередактируема, обычная — да). В pc_lite сейчас НЕТ object page
+             и нет кнопки "Редактировать" вообще (лайт — одна форма, один
+             сабмит, без edit-цикла, см. верхний комментарий файла) — поле
+             добавлено для параллели формы CheckRoots между двумя входами в
+             одни и те же DB-таблицы (тот же принцип, что уже применён к
+             ChecksHidden/BarriersHidden/ThisIsIntegrationData рядом — они
+             тоже нигде не читаются клиентом pc_lite сегодня), не потому что
+             pc_lite прямо сейчас на него смотрит. Вычисляется в
+             MockServerBootstrap.js#_normalizeDeepCreate той же формулой. -->
+        <Property Name="Updatable"             Type="Edm.Boolean" Nullable="false" sap:visible="false" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="ChecksHidden"          Type="Edm.Boolean" Nullable="false" sap:label="Проверки скрыты" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="BarriersHidden"        Type="Edm.Boolean" Nullable="false" sap:label="Барьеры скрыты" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="LastChangedAt"         Type="Edm.DateTime" sap:visible="false" sap:creatable="false" sap:updatable="false" ConcurrencyMode="Fixed"/>
+        <Property Name="CreatedBy"             Type="Edm.String" MaxLength="12" sap:label="Кем создано" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="CreatedAt"             Type="Edm.DateTime" sap:label="Создано" sap:creatable="false" sap:updatable="false"/>
+        <NavigationProperty Name="to_Checks"   Relationship="ZCheckService.CheckRoot_CheckItems"  FromRole="Root" ToRole="CheckItem" sap:creatable="true"/>
+        <NavigationProperty Name="to_Barriers" Relationship="ZCheckService.CheckRoot_Barriers"    FromRole="Root" ToRole="Barrier"  sap:creatable="true"/>
+      </EntityType>
+
+      <EntityType Name="CheckItem" sap:label="Строка проверки">
+        <Key>
+          <PropertyRef Name="RootId"/>
+          <PropertyRef Name="ItemId"/>
+        </Key>
+        <Property Name="RootId"        Type="Edm.String" Nullable="false" MaxLength="36" sap:label="ID заголовка" sap:visible="false"/>
+        <Property Name="ItemId"        Type="Edm.String" Nullable="false" MaxLength="36" sap:label="ID строки" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="Code"          Type="Edm.String" Nullable="true"  MaxLength="30"  sap:label="Тип проверки" sap:text="Text"/>
+        <Property Name="RawText"       Type="Edm.String" Nullable="true"  MaxLength="200" sap:label="Текст (как есть)"/>
+        <Property Name="Text"          Type="Edm.String" Nullable="true"  MaxLength="200" sap:label="Тип проверки"/>
+        <Property Name="Comment"       Type="Edm.String" MaxLength="2000" sap:label="Комментарий"/>
+        <Property Name="Result"        Type="Edm.String" MaxLength="1"   sap:label="Результат" sap:text="ResultText"/>
+        <Property Name="ResultText"    Type="Edm.String" MaxLength="100" sap:label="Результат"/>
+        <!-- [Поля несоответствия, по запросу] Активны на клиенте (enabled)
+             только при Result = " " (см. model/BusinessRules.js#
+             isUnsatisfactoryResult) — здесь, в контракте, оба поля Nullable,
+             сервер конкретной проверки на серверной стороне не делает,
+             клиентская валидация уже требует их заполнения в этом случае
+             (см. Submit.js). -->
+        <Property Name="NonConformityDescription" Type="Edm.String" MaxLength="2000" sap:label="Описание несоответствия"/>
+        <Property Name="NonConformityLocation"    Type="Edm.String" MaxLength="200"  sap:label="Место несоответствия"/>
+        <NavigationProperty Name="to_Root" Relationship="ZCheckService.CheckRoot_CheckItems" FromRole="CheckItem" ToRole="Root"/>
+      </EntityType>
+
+      <EntityType Name="Barrier" sap:label="Барьер">
+        <Key>
+          <PropertyRef Name="RootId"/>
+          <PropertyRef Name="BarrierId"/>
+        </Key>
+        <Property Name="RootId"        Type="Edm.String" Nullable="false" MaxLength="36" sap:label="ID заголовка" sap:visible="false"/>
+        <Property Name="BarrierId"     Type="Edm.String" Nullable="false" MaxLength="36" sap:label="ID барьера" sap:creatable="false" sap:updatable="false"/>
+        <Property Name="Code"          Type="Edm.String" Nullable="false" MaxLength="30"  sap:label="Тип барьера" sap:text="Text"/>
+        <Property Name="Text"          Type="Edm.String" Nullable="true"  MaxLength="100" sap:label="Тип барьера"/>
+        <Property Name="Comment"       Type="Edm.String" MaxLength="2000" sap:label="Примечания"/>
+        <Property Name="Result"        Type="Edm.String" MaxLength="1"   sap:label="Результат" sap:text="ResultText"/>
+        <Property Name="ResultText"    Type="Edm.String" MaxLength="100" sap:label="Результат"/>
+        <!-- [Поля несоответствия, по запросу] См. идентичный комментарий у
+             CheckItem выше. -->
+        <Property Name="NonConformityDescription" Type="Edm.String" MaxLength="2000" sap:label="Описание несоответствия"/>
+        <Property Name="NonConformityLocation"    Type="Edm.String" MaxLength="200"  sap:label="Место несоответствия"/>
+        <NavigationProperty Name="to_Root" Relationship="ZCheckService.CheckRoot_Barriers" FromRole="Barrier" ToRole="Root"/>
+      </EntityType>
+
+      <EntityType Name="Person" sap:label="Сотрудник">
+        <Key>
+          <PropertyRef Name="Pernr"/>
+        </Key>
+        <Property Name="Pernr"      Type="Edm.String" Nullable="false" MaxLength="8"   sap:label="Табельный номер"/>
+        <Property Name="Fio"        Type="Edm.String" MaxLength="100" sap:label="ФИО" sap:filterable="true"/>
+        <Property Name="ActiveFrom" Type="Edm.DateTime" sap:label="Активен с" sap:filterable="true"/>
+        <Property Name="ActiveTo"   Type="Edm.DateTime" sap:label="Активен по" sap:filterable="true"/>
+      </EntityType>
+
+      <!-- [Fix РЕАЛЬНЫЙ БАГ, по запросу] EffectiveDate — та же ситуация, что
+           уже решена для Persons.ActiveFrom (см. PersonSearchFacade.js):
+           одна и та же LocationCode может иметь несколько строк во времени
+           (переименование/реорганизация площадки — та же таблица ZCHK_LOCH,
+           что и у redux, где resolvers.py решает эту же задачу). Клиент
+           передаёт CheckDate в условия фильтрации ($filter EffectiveDate le
+           :checkDate — см. DictionaryFacade.js#load/_buildLocationAsOfFilter,
+           зеркалит PersonSearchFacade.js#_buildActiveOnFilter один в один),
+           сервер отдаёт только строки, действующие НЕ ПОЗЖЕ даты проверки, а
+           затем DictionaryFacade._latestPerLocationCode на клиенте берёт
+           max(EffectiveDate) в каждой группе по LocationCode — единственную
+           актуальную на дату проверки версию каждого узла. sap:filterable —
+           обязателен для этого самого $filter le. Мок-данные (model/
+           LocationHierarchy.json) зеркалят тот же сценарий переименования
+           (LOC-003), что redux уже держит в serve_config.py, теми же UUID/
+           датами — единая "история" в обоих мок-датасетах. -->
+      <EntityType Name="LocationHierarchy" sap:label="Иерархия местоположений">
+        <Key>
+          <PropertyRef Name="LocationUuid"/>
+        </Key>
+        <Property Name="LocationUuid"        Type="Edm.String" Nullable="false" MaxLength="36" sap:label="UUID местоположения"/>
+        <Property Name="LocationName"        Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+        <Property Name="LocationCode"        Type="Edm.String" MaxLength="20"  sap:label="Код" sap:filterable="true"/>
+        <Property Name="ParentLocationUuid"  Type="Edm.String" MaxLength="36"  sap:label="Родительский UUID" sap:filterable="true"/>
+        <Property Name="HasChildren"         Type="Edm.Boolean" Nullable="false" sap:label="Есть дети"/>
+        <Property Name="Level"               Type="Edm.Int32" sap:label="Уровень иерархии"/>
+        <Property Name="EffectiveDate"       Type="Edm.DateTime" sap:label="Действует с" sap:filterable="true"/>
+      </EntityType>
+
+      <EntityType Name="BarrierType" sap:label="Тип барьера">
+        <Key><PropertyRef Name="BarrierTypeCode"/></Key>
+        <Property Name="BarrierTypeCode" Type="Edm.String" Nullable="false" MaxLength="30" sap:label="Код"/>
+        <Property Name="BarrierTypeText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+        <Property Name="Category"        Type="Edm.String" MaxLength="50"  sap:label="Категория" sap:filterable="true"/>
+        <Property Name="PkLevels"        Type="Edm.String" MaxLength="50"  sap:label="Доступные уровни КПР"/>
+      </EntityType>
+
+      <EntityType Name="CheckType" sap:label="Тип проверки">
+        <Key><PropertyRef Name="CheckTypeCode"/></Key>
+        <Property Name="CheckTypeCode" Type="Edm.String" Nullable="false" MaxLength="30" sap:label="Код"/>
+        <Property Name="CheckTypeText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+        <Property Name="Category"      Type="Edm.String" MaxLength="50"  sap:label="Категория" sap:filterable="true"/>
+        <Property Name="PkLevels"      Type="Edm.String" MaxLength="50"  sap:label="Доступные уровни КПР"/>
+      </EntityType>
+
+      <!-- [Механизм авто-добавления строк по уровню КПР] Правило вынесено в
+           данные (эта сущность), а не зашито в код контроллера/фасада —
+           точный бизнес-список ещё не финализирован, редактируется правкой
+           mock-данных (model/AutoRowRules.json), без изменения логики.
+           Составной ключ (PkLevel+Type+Code) — сущность специально имеет
+           форму обычного OData EntitySet (как CheckTypes/BarrierTypes рядом),
+           чтобы при переходе на реальный бэкенд (см. MIGRATION_MAPPING.md)
+           замена мока на настоящую таблицу БД была прозрачной для
+           facade/DictionaryFacade.js — сигнатура чтения не меняется. -->
+      <EntityType Name="AutoRowRule" sap:label="Правило авто-добавления строки">
+        <Key>
+          <PropertyRef Name="PkLevel"/>
+          <PropertyRef Name="Type"/>
+          <PropertyRef Name="Code"/>
+        </Key>
+        <Property Name="PkLevel" Type="Edm.String" Nullable="false" MaxLength="10" sap:label="Уровень КПР"/>
+        <Property Name="Type"    Type="Edm.String" Nullable="false" MaxLength="10" sap:label="Тип строки (Checks/Barriers)"/>
+        <Property Name="Code"    Type="Edm.String" Nullable="false" MaxLength="30" sap:label="Код"/>
+      </EntityType>
+
+      <EntityType Name="CheckResult" sap:label="Результат проверки">
+        <Key><PropertyRef Name="ResultCode"/></Key>
+        <Property Name="ResultCode" Type="Edm.String" Nullable="false" MaxLength="20" sap:label="Код"/>
+        <Property Name="ResultText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+      </EntityType>
+
+      <EntityType Name="PkLevel" sap:label="Уровень КПР">
+        <Key><PropertyRef Name="PkLevel"/></Key>
+        <Property Name="PkLevel"     Type="Edm.String" Nullable="false" MaxLength="10" sap:label="Код"/>
+        <Property Name="PkLevelText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+      </EntityType>
+
+      <EntityType Name="TimeZone" sap:label="Часовой пояс">
+        <Key><PropertyRef Name="TimeZoneCode"/></Key>
+        <Property Name="TimeZoneCode" Type="Edm.String" Nullable="false" MaxLength="50" sap:label="Код"/>
+        <Property Name="TimeZoneText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+      </EntityType>
+
+      <EntityType Name="Profession" sap:label="Профессия">
+        <Key><PropertyRef Name="ProfessionCode"/></Key>
+        <Property Name="ProfessionCode" Type="Edm.String" Nullable="false" MaxLength="50" sap:label="Код"/>
+        <Property Name="ProfessionText" Type="Edm.String" MaxLength="100" sap:label="Наименование" sap:filterable="true"/>
+      </EntityType>
+
+      <Association Name="CheckRoot_CheckItems">
+        <End Type="ZCheckService.CheckRoot" Multiplicity="1" Role="Root"/>
+        <End Type="ZCheckService.CheckItem" Multiplicity="*" Role="CheckItem"/>
+        <ReferentialConstraint>
+          <Principal Role="Root"><PropertyRef Name="RootId"/></Principal>
+          <Dependent Role="CheckItem"><PropertyRef Name="RootId"/></Dependent>
+        </ReferentialConstraint>
+      </Association>
+
+      <Association Name="CheckRoot_Barriers">
+        <End Type="ZCheckService.CheckRoot" Multiplicity="1" Role="Root"/>
+        <End Type="ZCheckService.Barrier"   Multiplicity="*" Role="Barrier"/>
+        <ReferentialConstraint>
+          <Principal Role="Root"><PropertyRef Name="RootId"/></Principal>
+          <Dependent Role="Barrier"><PropertyRef Name="RootId"/></Dependent>
+        </ReferentialConstraint>
+      </Association>
+
+      <EntityContainer Name="ZCheckServiceEntities" m:IsDefaultEntityContainer="true">
+        <!-- [По запросу] sap:updatable-path/sap:deletable-path вместо статичных
+             sap:updatable="true"/sap:deletable="true" — то же зеркало redux/
+             localService/metadata.xml (там ЖЕ EntitySet, тот же приём, см.
+             комментарий у Property Updatable в CheckRoot выше): доступность
+             редактирования/удаления решается ЗНАЧЕНИЕМ поля Updatable на
+             конкретной записи, а не статичным "да для всех записей". pc_lite
+             сам этот флаг сегодня нигде не читает (нет object page/кнопки
+             "Редактировать") — но раз поле есть в сущности, аннотация должна
+             указывать на него по-честному, а не врать sap:updatable="true"
+             для записей, которые (если бы это читалось) должны быть
+             read-only. -->
+        <EntitySet Name="CheckRoots"  EntityType="ZCheckService.CheckRoot"
+                   sap:creatable="true" sap:updatable-path="Updatable" sap:deletable-path="Updatable"
+                   sap:searchable="true" sap:countable="true"/>
+        <EntitySet Name="CheckItems"  EntityType="ZCheckService.CheckItem"
+                   sap:creatable="true" sap:updatable="true" sap:deletable="true"
+                   sap:countable="true"/>
+        <EntitySet Name="Barriers"    EntityType="ZCheckService.Barrier"
+                   sap:creatable="true" sap:updatable="true" sap:deletable="true"
+                   sap:countable="true"/>
+        <EntitySet Name="Persons"           EntityType="ZCheckService.Person"           sap:countable="true"/>
+        <EntitySet Name="LocationHierarchy" EntityType="ZCheckService.LocationHierarchy" sap:countable="true"/>
+        <EntitySet Name="BarrierTypes"      EntityType="ZCheckService.BarrierType"      sap:countable="true"/>
+        <EntitySet Name="CheckTypes"        EntityType="ZCheckService.CheckType"        sap:countable="true"/>
+        <EntitySet Name="CheckResults"      EntityType="ZCheckService.CheckResult"      sap:countable="true"/>
+        <EntitySet Name="PkLevels"          EntityType="ZCheckService.PkLevel"          sap:countable="true"/>
+        <EntitySet Name="TimeZones"         EntityType="ZCheckService.TimeZone"         sap:countable="true"/>
+        <EntitySet Name="Professions"       EntityType="ZCheckService.Profession"       sap:countable="true"/>
+        <EntitySet Name="AutoRowRules"      EntityType="ZCheckService.AutoRowRule"      sap:countable="true"/>
+
+        <AssociationSet Name="CheckRoot_CheckItemsSet" Association="ZCheckService.CheckRoot_CheckItems">
+          <End EntitySet="CheckRoots" Role="Root"/>
+          <End EntitySet="CheckItems" Role="CheckItem"/>
+        </AssociationSet>
+        <AssociationSet Name="CheckRoot_BarriersSet" Association="ZCheckService.CheckRoot_Barriers">
+          <End EntitySet="CheckRoots" Role="Root"/>
+          <End EntitySet="Barriers"   Role="Barrier"/>
+        </AssociationSet>
+      </EntityContainer>
+
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

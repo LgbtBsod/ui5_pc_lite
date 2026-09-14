@@ -1,0 +1,36 @@
+{
+  "root": true,
+  "env": {
+    "browser": true,
+    "es2020": true
+  },
+  "parserOptions": {
+    "ecmaVersion": 2020,
+    "sourceType": "script"
+  },
+  "globals": {
+    "sap": "readonly",
+    "jQuery": "readonly"
+  },
+  "extends": "eslint:recommended",
+  "rules": {
+    "no-var": "error",
+    "prefer-const": "error",
+    "prefer-arrow-callback": "error",
+    "prefer-template": "error",
+    "object-shorthand": "error",
+    "arrow-body-style": ["error", "as-needed"],
+    "no-unused-vars": ["error", { "args": "none" }],
+    "eqeqeq": ["error", "smart"],
+    "no-console": "warn"
+  },
+  "ignorePatterns": ["lib/**", "node_modules/**"],
+  "overrides": [
+    {
+      "files": ["test/**/*.js"],
+      "globals": {
+        "QUnit": "readonly"
+      }
+    }
+  ]
+}

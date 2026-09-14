@@ -1,0 +1,20 @@
+{
+  "_comment": "PK_ASSESS_0..3 — ЧЕРНОВИК, см. model/AutoRowRules.json. Оценка соответствия предыдущему уровню КПР, авто-добавляется при выборе уровня на 1 выше своего.",
+  "d": {
+    "results": [
+      { "CheckTypeCode": "VISUAL_INSPECTION", "CheckTypeText": "Визуальный осмотр", "Category": "Общие", "PkLevels": "0,1,2,3,4" },
+      { "CheckTypeCode": "DOCUMENT_REVIEW", "CheckTypeText": "Проверка документов", "Category": "Общие", "PkLevels": "0,1,2,3,4" },
+      { "CheckTypeCode": "INTERVIEW", "CheckTypeText": "Опрос персонала", "Category": "Персонал", "PkLevels": "2,3,4" },
+      { "CheckTypeCode": "EQUIPMENT_CHECK", "CheckTypeText": "Проверка оборудования", "Category": "Оборудование", "PkLevels": "3,4" },
+      { "CheckTypeCode": "AUDIT", "CheckTypeText": "Аудит процессов", "Category": "Процессы", "PkLevels": "4" },
+      { "CheckTypeCode": "RISK_ASSESSMENT", "CheckTypeText": "Оценка рисков", "Category": "Процессы", "PkLevels": "3,4" },
+      { "CheckTypeCode": "TRAINING_VERIFY", "CheckTypeText": "Проверка обучения", "Category": "Персонал", "PkLevels": "1,2,3,4" },
+      { "CheckTypeCode": "EMERGENCY_DRILL", "CheckTypeText": "Тренировка по авариям", "Category": "Процессы", "PkLevels": "4" },
+
+      { "CheckTypeCode": "PK_ASSESS_0", "CheckTypeText": "Оценка соответствия уровню КПР-0", "Category": "Оценка уровня КПР", "PkLevels": "1" },
+      { "CheckTypeCode": "PK_ASSESS_1", "CheckTypeText": "Оценка соответствия уровню КПР-1", "Category": "Оценка уровня КПР", "PkLevels": "2" },
+      { "CheckTypeCode": "PK_ASSESS_2", "CheckTypeText": "Оценка соответствия уровню КПР-2", "Category": "Оценка уровня КПР", "PkLevels": "3" },
+      { "CheckTypeCode": "PK_ASSESS_3", "CheckTypeText": "Оценка соответствия уровню КПР-3", "Category": "Оценка уровня КПР", "PkLevels": "4" }
+    ]
+  }
+}

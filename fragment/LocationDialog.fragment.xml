@@ -1,0 +1,76 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core"
+  xmlns:data="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
+
+  <Dialog id="locationDialog" title="{i18n>vhLocationTitle}" stretch="false"
+          contentWidth="480px" resizable="true" class="appDialog">
+    <content>
+      <VBox class="sapUiSmallMargin">
+
+        <!-- Единая строка: хлебные крошки текущей навигации (кликабельны,
+             последнее звено — plain text = где мы сейчас находимся). При
+             повторном открытии диалога уже показывает путь до реального
+             выбора формы (см. onLocationValueHelp), а не всегда "Все". -->
+        <Breadcrumbs currentLocationText="{locationModel>/breadcrumbCurrentText}"
+                     links="{path:'locationModel>/breadcrumbLinks', parameters:{templateShareable:true}}"
+                     class="appLocationBreadcrumbs">
+          <Link text="{locationModel>NodeText}" press="onBreadcrumbPress"
+                data:nodeId="{locationModel>NodeID}"/>
+        </Breadcrumbs>
+
+        <SearchField id="locSearch" liveChange="onLocSearch"
+                     placeholder="{i18n>phLocFilter}" width="100%" class="appInput"/>
+
+        <!-- [Fix "не изобретать велосипед", аудит] items биндится напрямую
+             на locationModel>/items (весь плоский массив иерархии, грузится
+             один раз) вместо отдельной производной ветки /levelItems,
+             пересобираемой в JS на каждый клик/букву поиска (см.
+             LocationPicker.js). Видимый набор строк сужается штатным
+             sap.ui.model.Filter (ParentNodeID + текст поиска), применяемым
+             через ListBinding#filter() в _navigateLocationLevel/onLocSearch. -->
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] growing/growingScrollToLoad — вся
+             иерархия локаций грузится целиком и без пагинации один раз при
+             старте (см. DictionaryFacade.load), а фильтр по ParentNodeID/
+             тексту поиска сужает эту ЖЕ модель штатным ListBinding#filter().
+             На моковых ~6 узлах это незаметно, но при реальной иерархии
+             (площадка > корпус > этаж > помещение) уровень с сотнями
+             соседей (например, этаж с 200+ комнатами) без growing рендерил
+             бы все 200+ CustomListItem/HBox/2×Button сразу, одним разом,
+             без виртуализации — реальная стоимость рендера на мобильных
+             устройствах, для которых это приложение и делается. growing
+             не требует изменений на сервере/в metadata.xml — чисто
+             клиентское поведение sap.m.List, доступное в UI5 1.71 как есть. -->
+        <List id="locationList"
+              items="{path:'locationModel>/items', parameters:{templateShareable:true}}"
+              mode="None"
+              growing="true"
+              growingScrollToLoad="true"
+              noDataText="{i18n>msgLocEmptyLevel}"
+              class="appLocationList">
+          <CustomListItem highlight="{parts: [{path:'locationModel>NodeID'}, {path:'locationModel>/selectedNodeId'}], formatter: '.formatter.locationRowHighlight'}"
+                          class="appLocationRow">
+            <HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
+              <Button type="Transparent" width="100%"
+                      icon="{= ${locationModel>HasChildren} ? 'sap-icon://folder' : 'sap-icon://document' }"
+                      text="{locationModel>NodeText}"
+                      press="onLocationRowSelect"
+                      class="appLocationRowBtn"/>
+              <Button type="Transparent" icon="sap-icon://slim-arrow-right"
+                      visible="{locationModel>HasChildren}"
+                      press="onLocationRowNavigate"
+                      tooltip="{i18n>ttLocationDrillIn}"
+                      class="appLocationRowNav"/>
+            </HBox>
+          </CustomListItem>
+        </List>
+      </VBox>
+    </content>
+    <buttons>
+      <Button text="{i18n>btnChoose}" type="Emphasized" press="onLocationChooseCurrentLevel"
+              enabled="{= !!${locationModel>/selectedNodeId} }" class="appBtnPrimary"/>
+      <Button text="{i18n>btnCancel}" press="onCloseLocationDialog"/>
+    </buttons>
+  </Dialog>
+
+</core:FragmentDefinition>

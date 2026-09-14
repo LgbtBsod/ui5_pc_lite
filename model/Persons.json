@@ -1,0 +1,12 @@
+{
+  "d": {
+    "results": [
+      { "Pernr": "00000001", "Fio": "Инженер по ОТ Иван Петров", "ActiveFrom": "/Date(1577836800000)/", "ActiveTo": null },
+      { "Pernr": "00000002", "Fio": "Оператор Мария Сидорова", "ActiveFrom": "/Date(1577836800000)/", "ActiveTo": null },
+      { "Pernr": "00000003", "Fio": "Слесарь Сергей Иванов", "ActiveFrom": "/Date(1640995200000)/", "ActiveTo": null },
+      { "Pernr": "00000004", "Fio": "Специалист по ОТ Анна Смирнова", "ActiveFrom": "/Date(1640995200000)/", "ActiveTo": null },
+      { "Pernr": "00000005", "Fio": "Электромонтёр Дмитрий Кузнецов", "ActiveFrom": "/Date(1672531200000)/", "ActiveTo": null },
+      { "Pernr": "00000006", "Fio": "Оператор Ольга Новикова", "ActiveFrom": "/Date(1672531200000)/", "ActiveTo": "/Date(1719792000000)/" }
+    ]
+  }
+}

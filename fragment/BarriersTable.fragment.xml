@@ -1,0 +1,109 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+
+  <!-- [Fix UX, шаг Wizard'а всегда присутствует структурно, см. Main.view.xml]
+       На уровне КПР, где барьеры скрыты, шаг "Барьеры" показывает это
+       пояснение вместо пустой таблицы — тот же formatter.isBarriersHidden по
+       formModel>/PkLevel, что и Table ниже (в обратную сторону). [Fix
+       РЕАЛЬНЫЙ БАГ, аудит] Раньше — хранимый флаг formModel>/BarriersAllowed,
+       см. подробное обоснование у formatter.js#isBarriersAllowed. -->
+  <MessageStrip
+    text="{i18n>hintBarriers}"
+    type="Information" showIcon="true"
+    class="appHintStrip"
+    visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersHidden'}"/>
+
+  <!-- [Fix UX, по просьбе] Без Panel-карточки — см. ChecksTable.fragment.xml.
+       Видимость (formatter.isBarriersAllowed по formModel>/PkLevel) переехала
+       с Panel прямо на Table. -->
+  <!-- [Fix РЕАЛЬНЫЙ БАГ, по видео пользователя] headerToolbar с "Добавить" и
+       sticky отсюда убраны — см. идентичный комментарий в
+       ChecksTable.fragment.xml / подробности у pageBarriers в Main.view.xml. -->
+  <Table id="barriersTable"
+         items="{path:'barriersModel>/items', parameters:{templateShareable:true}}"
+         mode="Delete"
+         delete="onBarriersDelete"
+         class="appTable"
+         visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersAllowed'}"
+         noDataText="{i18n>msgNoRowsBarriers}">
+      <columns>
+        <Column width="40%" minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colBarrier}"/>
+        </Column>
+        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colComment}"/>
+        </Column>
+        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colResult}"/>
+        </Column>
+        <!-- [Поля несоответствия, по запросу] См. идентичный комментарий в
+             ChecksTable.fragment.xml. -->
+        <!-- [Fix РЕАЛЬНЫЙ БАГ, дизайн-ревью] minScreenWidth="Desktop" — см.
+             подробное обоснование в ChecksTable.fragment.xml (5 колонок на
+             ширине планшета иначе сжимаются до ~99px каждая). -->
+        <Column minScreenWidth="Desktop" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colNonConformityDescription}"/>
+        </Column>
+        <Column minScreenWidth="Desktop" demandPopin="true" popinDisplay="Block">
+          <Text text="{i18n>colNonConformityLocation}"/>
+        </Column>
+      </columns>
+      <items>
+        <ColumnListItem>
+          <cells>
+            <!-- [Fix UX, по видео пользователя] См. идентичный комментарий и
+                 обоснование в ChecksTable.fragment.xml — тот же Link.wrapping
+                 вместо Input, по той же причине (mode="Delete" отъедает
+                 колонку под "Удалить" на ЭТОЙ строке, обрезая длинный текст
+                 в Input, который физически не умеет переноситься). -->
+            <!-- [Fix, живой тест] См. идентичный комментарий в
+                 ChecksTable.fragment.xml — class-биндинг не работает,
+                 два статичных Link + visible-переключение вместо него. -->
+            <!-- [Fix РЕАЛЬНЫЙ БАГ, найдено независимым ревью] См. идентичный
+                 комментарий в ChecksTable.fragment.xml — decorative иконка
+                 без press была мёртвой зоной клика. -->
+            <HBox class="appCellCodePicker">
+              <Link text="{barriersModel>BarrierText}"
+                    wrapping="true"
+                    press="onBarrierValueHelp"
+                    visible="{= !!${barriersModel>BarrierText} }"
+                    class="appCellCodeLinkFilled"/>
+              <Link text="{i18n>phCodeSelect}"
+                    wrapping="true"
+                    press="onBarrierValueHelp"
+                    visible="{= !${barriersModel>BarrierText} }"
+                    class="appCellCodeLinkPlaceholder"/>
+              <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] См. идентичный комментарий в
+                   ChecksTable.fragment.xml. -->
+              <core:Icon src="sap-icon://value-help" decorative="false" press="onBarrierValueHelp" tooltip="{i18n>ttCodeSelect}" class="appCellCodeVhIcon"/>
+            </HBox>
+            <!-- [Fix SSOT] maxLength — constraintsModel (EntityConfig.CONSTRAINTS),
+                 единственный источник, зеркалящий Barrier.Comment MaxLength="2000"
+                 из metadata.xml, вместо независимого литерала здесь. -->
+            <TextArea value="{barriersModel>Comment}" placeholder="{i18n>phComment}" width="100%"
+                      rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/CommentMaxLength}"
+                      class="appCellTextArea"/>
+            <!-- [Fix Memory/Perf] Факторная привязка — см. идентичный комментарий
+                 в ChecksTable.fragment.xml (тот же класс проблемы: ComboBox внутри
+                 шаблона строки Table, вложенный items-биндинг с templateShareable
+                 не всегда переживает клонирование внешнего шаблона в SAPUI5 1.71). -->
+            <ComboBox selectedKey="{barriersModel>Status}"
+                      items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
+                      width="100%" class="appCellComboBox"/>
+            <!-- [Поля несоответствия, по запросу] См. идентичный комментарий
+                 в ChecksTable.fragment.xml. -->
+            <TextArea value="{barriersModel>NonConformityDescription}" placeholder="{i18n>phNonConformityDescription}" width="100%"
+                      rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/NonConformityDescriptionMaxLength}"
+                      enabled="{path:'barriersModel>Status', formatter:'.formatter.isUnsatisfactoryResult'}"
+                      class="appCellTextArea"/>
+            <Input value="{barriersModel>NonConformityLocation}" placeholder="{i18n>phNonConformityLocation}" width="100%"
+                   maxLength="{constraintsModel>/NonConformityLocationMaxLength}"
+                   enabled="{path:'barriersModel>Status', formatter:'.formatter.isUnsatisfactoryResult'}"
+                   class="appCellInputField"/>
+          </cells>
+        </ColumnListItem>
+      </items>
+  </Table>
+
+</core:FragmentDefinition>

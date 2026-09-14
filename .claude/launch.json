@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pc_lite-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["dev-server.py", "4351"],
+      "port": 4351
+    },
+    {
+      "name": "redux-app",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["redux/app-server.js"],
+      "port": 8000
+    }
+  ]
+}

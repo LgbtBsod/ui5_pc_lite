@@ -1,0 +1,83 @@
+{
+  "_version": "1.1.0",
+  "sap.app": {
+    "_version": "1.1.0",
+    "id": "sap.pc_lite.lite",
+    "type": "application",
+    "title": "{{appTitle}}",
+    "description": "",
+    "applicationVersion": { "version": "1.0.0" },
+    "dataSources": {
+      "mainService": {
+        "uri": "/sap/opu/odata/sap/ZCHECK_SRV/",
+        "type": "OData",
+        "settings": { "odataVersion": "2.0" }
+      }
+    },
+    "crossNavigation": {
+      "inbounds": {
+        "Intent-createChecks": {
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "Checks",
+          "action": "create",
+          "title": "{{appTitle}}",
+          "icon": "sap-icon://shield"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "_version": "1.1.0",
+    "technology": "UI5",
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true },
+    "fullWidth": true
+  },
+  "sap.ui5": {
+    "_version": "1.1.0",
+    "rootView": {
+      "viewName": "sap.pc_lite.lite.view.Main",
+      "type": "XML",
+      "async": true,
+      "id": "Main"
+    },
+    "dependencies": {
+      "minUI5Version": "1.71.0",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.layout": {}
+      }
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": { "bundleName": "sap.pc_lite.lite.i18n.i18n" }
+      },
+      "": {
+        "type": "sap.ui.model.odata.v2.ODataModel",
+        "dataSource": "mainService",
+        "settings": {
+          "defaultBindingMode": "TwoWay",
+          "defaultUpdateMethod": "PATCH",
+          "useBatch": true,
+          "json": true,
+          "defaultCountMode": "None"
+        }
+      }
+    },
+    "resources": {
+      "css": [
+        { "uri": "css/style.css" }
+      ]
+    },
+    "contentDensities": { "compact": true, "cozy": true },
+    "flexEnabled": false
+  },
+  "sap.fiori": {
+    "_version": "1.1.0",
+    "registrationIds": [],
+    "archeType": "transactional"
+  }
+}

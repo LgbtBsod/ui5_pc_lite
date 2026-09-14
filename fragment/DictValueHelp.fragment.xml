@@ -1,0 +1,47 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+
+  <!-- [Fix "не изобретать велосипед", по запросу] Раньше — самодельный
+       Dialog + SearchField + List + Cancel-кнопка, с ручным закрытием и
+       ручным чтением выбранной строки из press-события. sap.m.SelectDialog —
+       штатный контрол ровно под эту задачу ("выбрать одно из
+       фильтруемого/группируемого списка на телефоне"): сам управляет
+       полем поиска (liveChange), сам закрывается и шлёт confirm с
+       выбранным item по тапу в single-select режиме (multiSelect не задан
+       — false по умолчанию), сам даёт Cancel. Проверено живьём перед
+       переходом: Sorter(group:true)+groupHeaderFactory и Filter применяются
+       к его items ТОЧНО так же, как к обычному sap.m.List (items —
+       обычная forwarded-агрегация, не особый случай). items здесь не
+       биндится статически — тот же диалог общий для Checks/Barriers (см.
+       _getDialog в Main.controller.js, кэш по id), путь
+       ("dictionaryModel>/CHECKS" или "/BARRIERS"), Sorter и Filter
+       перепривязываются программно на каждое открытие под актуальный
+       dictType — см. DictionaryValueHelp.js#_bindVhList. Единственная
+       видимая перемена для пользователя: на телефоне список теперь на весь
+       экран (SelectDialog растягивается сам, stretch нельзя отключить) —
+       больше места под список, тот же стандартный Fiori-паттерн для
+       value-help на мобильном. -->
+  <!-- [Fix РЕАЛЬНЫЙ БАГ, по живому скриншоту] class="appDialog" (и
+       contentWidth) сюда добавляли по инерции от старого компактного
+       Dialog — appDialog.sapMDialog задаёт border-radius/box-shadow, а
+       @media(max-width:400px) внутри нёго же принудительно ставит
+       width:94vw, .appDialog .sapMDialogScroll — max-height:70vh. Всё
+       это — стили ИМЕННО под маленькую карточку по центру экрана и
+       напрямую конфликтует с native-растягиванием SelectDialog на весь
+       экран: результат — гибрид со скруглёнными углами, видимой
+       подложкой по бокам (94vw вместо 100vw) и пустым местом снизу перед
+       "Отменить" (список обрезан по 70vh, хотя места под него — весь
+       экран). appDialog отсюда убран целиком — растянутому SelectDialog
+       чужая "компактная" тема не нужна вообще, только заголовок стилизован
+       отдельным классом ниже (appVhSelectDialog, см. style.css) — без
+       радиуса/тени/капов, которые для полноэкранного листа не имеют смысла. -->
+  <SelectDialog id="dictVhDialog"
+                title="{vhModel>/dialogTitle}"
+                noDataText="{i18n>msgVhEmpty}"
+                liveChange="onVhSearch"
+                confirm="onVhConfirm"
+                cancel="onCloseDictVhDialog"
+                class="appVhSelectDialog"/>
+
+</core:FragmentDefinition>
