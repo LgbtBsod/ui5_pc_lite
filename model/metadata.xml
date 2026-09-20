@@ -45,9 +45,18 @@
              Pernr, опечатка была только на границе OData-контракта).
              Исправлено сейчас, пока мок — единственный потребитель, до
              того как под это заведут настоящий ABAP DPC_EXT. -->
-        <Property Name="ObserverPernr"    Type="Edm.String" MaxLength="8" sap:label="Табельный № инспектора"/>
+        <!-- [По запросу, решено] Pernr — теперь тоже Nullable="false", не
+             только Fullname. Раньше это было намеренной несостыковкой
+             (см. abap/README.md, п.3 "Несостыковка: клиент строже
+             контракта") — контракт разрешал прислать голый текст без
+             выбора из справочника, хотя FormValidator.js уже требовал
+             непустой *Pernr (т.е. реального выбора через подсказку).
+             Прямое решение по проекту: выбор из справочника обязателен —
+             контракт приведён в соответствие с уже действующим поведением
+             клиента, а не наоборот. -->
+        <Property Name="ObserverPernr"    Type="Edm.String" Nullable="false" MaxLength="8" sap:label="Табельный № инспектора"/>
         <Property Name="ObservedFullname" Type="Edm.String" Nullable="false" MaxLength="100" sap:label="ФИО проверяемого"/>
-        <Property Name="ObservedPernr"    Type="Edm.String" MaxLength="8" sap:label="Табельный № проверяемого"/>
+        <Property Name="ObservedPernr"    Type="Edm.String" Nullable="false" MaxLength="8" sap:label="Табельный № проверяемого"/>
         <Property Name="LpcKey"        Type="Edm.String" MaxLength="10" sap:label="Уровень КПР" sap:text="LpcText"/>
         <Property Name="LpcText"       Type="Edm.String" Nullable="false" MaxLength="100" sap:label="Уровень КПР"/>
         <Property Name="ProfKey"       Type="Edm.String" MaxLength="50" sap:label="Профессия" sap:text="ProfText"/>
@@ -255,11 +264,22 @@
         <EntitySet Name="CheckRoots"  EntityType="ZCheckService.CheckRoot"
                    sap:creatable="true" sap:updatable-path="Updatable" sap:deletable-path="Updatable"
                    sap:searchable="true" sap:countable="true"/>
+        <!-- [По запросу, решено] CheckItems/Barriers — раньше sap:creatable/
+             updatable/deletable="true" без единого реального вызова, стоящего
+             за этим (см. abap/README.md, был "Открытый вопрос"). Решение по
+             проекту: флага на CheckRoots достаточно — строки создаются
+             ИСКЛЮЧИТЕЛЬНО вложенным deep-entity POST через to_Checks/
+             to_Barriers (см. NavigationProperty sap:creatable="true" на
+             CheckRoot выше — этот канал не трогаем), самостоятельных
+             CREATE/UPDATE/DELETE на этих EntitySet'ах нет и не планируется.
+             sap:creatable/updatable/deletable по умолчанию (без явного
+             указания) в classic Gateway — "true", поэтому нужно явное
+             "false", простое удаление атрибутов ничего бы не закрыло. -->
         <EntitySet Name="CheckItems"  EntityType="ZCheckService.CheckItem"
-                   sap:creatable="true" sap:updatable="true" sap:deletable="true"
+                   sap:creatable="false" sap:updatable="false" sap:deletable="false"
                    sap:countable="true"/>
         <EntitySet Name="Barriers"    EntityType="ZCheckService.Barrier"
-                   sap:creatable="true" sap:updatable="true" sap:deletable="true"
+                   sap:creatable="false" sap:updatable="false" sap:deletable="false"
                    sap:countable="true"/>
         <EntitySet Name="Persons"           EntityType="ZCheckService.Person"           sap:countable="true"/>
         <EntitySet Name="LocationHierarchy" EntityType="ZCheckService.LocationHierarchy" sap:countable="true"/>

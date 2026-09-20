@@ -33,15 +33,19 @@ CLASS zcl_check_lite_dpc_ext DEFINITION
     METHODS checkroots_create_deep_entity REDEFINITION.
 
   PRIVATE SECTION.
-    "! [Fix РЕАЛЬНЫЙ БАГ, аудит] Валидируем ТЕКСТОВЫЕ поля (ObserverFullname/
-    "! ObservedFullname/...Text), не *Pernr/*Key — ровно то же решение, что
-    "! уже в ZCL_CHECK_DPC_EXT=>VALIDATE_REQUIRED_FIELDS (validates
-    "! is_basic-observer_fullname, не observer_pernr), и ровно то, что
-    "! реально объявлено Nullable="false" в pc_lite/model/metadata.xml
-    "! (ObserverFullname/ObservedFullname/LpcText/ProfText/TimezoneText —
-    "! везде ТЕКСТ мандатори, КОД — нет). Сервер валидирует контракт
-    "! ($metadata), а не сегодняшнюю строгость конкретного клиента — см.
-    "! pc_lite/abap/README.md, раздел "Несостыковка: клиент строже контракта".
+    "! [По запросу, решено] Валидируем ObserverPernr/ObservedPernr — выбор
+    "! из справочника Persons обязателен, свободный текст без выбора НЕ
+    "! легитимен (продуктовое решение, закрывает то, что раньше было
+    "! задокументировано как открытая несостыковка — см. историю
+    "! pc_lite/abap/README.md, п.3). Ровно то же самое теперь и в контракте:
+    "! ObserverPernr/ObservedPernr — тоже Nullable="false" в
+    "! pc_lite/model/metadata.xml (были нет), сервер здесь просто проверяет
+    "! то же самое, что уже объявлено в $metadata. ObserverFullname/
+    "! ObservedFullname по-прежнему пишутся (см. CHECKROOTS_CREATE_DEEP_ENTITY
+    "! ниже, *_fullname_manual) — это резолвленное отображаемое имя,
+    "! приходит от клиента ВМЕСТЕ с Pernr при валидном выборе, но само по
+    "! себе больше не считается достаточным основанием для прохождения
+    "! валидации.
     METHODS validate_required_fields
       IMPORTING
         is_basic TYPE zchk_basic
@@ -78,22 +82,17 @@ CLASS zcl_check_lite_dpc_ext IMPLEMENTATION.
 
   METHOD validate_required_fields.
     DATA(lt_missing) = VALUE string_table(
-      ( COND #( WHEN is_basic-observer_fullname_manual IS INITIAL
-                 AND is_basic-observer_pernr           IS INITIAL THEN 'ФИО инспектора' ) )
-      ( COND #( WHEN is_basic-observed_fullname_manual IS INITIAL
-                 AND is_basic-observed_pernr           IS INITIAL THEN 'ФИО проверяемого' ) )
+      ( COND #( WHEN is_basic-observer_pernr IS INITIAL THEN 'Инспектор — не выбран из справочника' ) )
+      ( COND #( WHEN is_basic-observed_pernr IS INITIAL THEN 'Проверяемый — не выбран из справочника' ) )
       ( COND #( WHEN is_basic-date     IS INITIAL THEN 'Дата проверки' ) )
       ( COND #( WHEN is_basic-time     IS INITIAL THEN 'Время проверки' ) )
       ( COND #( WHEN is_basic-timezone IS INITIAL THEN 'Часовой пояс' ) )
       ( COND #( WHEN is_basic-lpc_key  IS INITIAL THEN 'Уровень КПР' ) )
       ( COND #( WHEN is_basic-prof_key IS INITIAL THEN 'Профессия' ) ) ).
-    " [Отличие от ZCL_CHECK_DPC_EXT] Там проверяется *_fullname (вычисляемое
-    " поле CDS-проекции, читается через SELECT SINGLE после INSERT — уместно
-    " в контексте update). Здесь, на create, ФИО ещё не в базе — проверяем
-    " то, что реально пришло от клиента: Pernr (если выбран через F4) ИЛИ
-    " ручной текст (см. ZCHK_BASIC.OBSERVER_FULLNAME_MANUAL) — хотя бы один
-    " источник обязан быть непустым, ЛОГИКА та же (Nullable="false" на
-    " ObserverFullname в контракте), выражение другое из-за момента вызова.
+    " [По запросу, решено] Раньше здесь было "Pernr ИЛИ ручной текст —
+    " достаточно одного" (см. git-историю) — теперь Pernr обязателен сам по
+    " себе, свободный текст без выбора из справочника варианта прохождения
+    " не даёт вообще.
 
     DELETE lt_missing WHERE table_line IS INITIAL.
     CHECK lt_missing IS NOT INITIAL.
@@ -131,8 +130,12 @@ CLASS zcl_check_lite_dpc_ext IMPLEMENTATION.
     " [Fix РЕАЛЬНЫЙ БАГ, аудит] Симметрично redux/abap — CORRESPONDING не
     " находит ObserverFullname/ObservedFullname в zchk_basic (нет
     " одноимённых DB-полей, см. redux/abap/ddic/tables.md у
-    " OBSERVER_FULLNAME_MANUAL) и молча их роняет. Переносим явно, ДО
-    " валидации ниже (валидация читает именно *_fullname_manual).
+    " OBSERVER_FULLNAME_MANUAL) и молча их роняет. Переносим явно — ниже это
+    " уже НЕ участвует в валидации обязательности (см. VALIDATE_REQUIRED_
+    " FIELDS — там теперь только Pernr, выбор из справочника обязателен), но
+    " сохранить отображаемое имя всё равно нужно: оно приходит от клиента
+    " вместе с Pernr при валидном выборе и остаётся полезным как читаемое
+    " значение колонки (то же самое поле, что использует redux).
     ls_basic-observer_fullname_manual = ls_deep-to_basic-observerfullname.
     ls_basic-observed_fullname_manual = ls_deep-to_basic-observedfullname.
 

@@ -50,18 +50,28 @@
               class="appLocationList">
           <CustomListItem highlight="{parts: [{path:'locationModel>NodeID'}, {path:'locationModel>/selectedNodeId'}], formatter: '.formatter.locationRowHighlight'}"
                           class="appLocationRow">
-            <HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
-              <Button type="Transparent" width="100%"
-                      icon="{= ${locationModel>HasChildren} ? 'sap-icon://folder' : 'sap-icon://document' }"
-                      text="{locationModel>NodeText}"
-                      press="onLocationRowSelect"
-                      class="appLocationRowBtn"/>
-              <Button type="Transparent" icon="sap-icon://slim-arrow-right"
-                      visible="{locationModel>HasChildren}"
-                      press="onLocationRowNavigate"
-                      tooltip="{i18n>ttLocationDrillIn}"
-                      class="appLocationRowNav"/>
-            </HBox>
+            <VBox width="100%">
+              <HBox alignItems="Center" justifyContent="SpaceBetween" width="100%">
+                <Button type="Transparent" width="100%"
+                        icon="{= ${locationModel>HasChildren} ? 'sap-icon://folder' : 'sap-icon://document' }"
+                        text="{locationModel>NodeText}"
+                        press="onLocationRowSelect"
+                        class="appLocationRowBtn"/>
+                <Button type="Transparent" icon="sap-icon://slim-arrow-right"
+                        visible="{locationModel>HasChildren}"
+                        press="onLocationRowNavigate"
+                        tooltip="{i18n>ttLocationDrillIn}"
+                        class="appLocationRowNav"/>
+              </HBox>
+              <!-- [Поиск по всей иерархии, по запросу] Путь до родителя —
+                   только пока активен глобальный поиск (locationModel>/
+                   searchQuery непусто): вне поиска все строки на одном
+                   уровне и так понятны из хлебных крошек над списком, путь
+                   у каждой строки был бы избыточным шумом. -->
+              <Text text="{parts:[{path:'locationModel>NodeID'},{path:'locationModel>/lookupMap'}], formatter:'.formatter.locationRowParentPath'}"
+                    visible="{= !!${locationModel>/searchQuery} }"
+                    class="appLocationPath"/>
+            </VBox>
           </CustomListItem>
         </List>
       </VBox>

@@ -62,7 +62,7 @@ entity set'ов сервиса **9 не имеют здесь ни одного 
 | `AutoRowRules` | `cds/ZI_Lite_AutoRowRule.ddls.asddls` | **Да** — концепции нет в redux вообще |
 | `CheckRoots` (GET) | `cds/ZI_Lite_CheckRoot.ddls.asddls` (+ `ZI_Lite_CheckBasic`) | **Да** — своя проекция, без draft/агрегатов/ETag |
 | `CheckRoots` (deep CREATE) | `classes/ZCL_CHECK_LITE_DPC_EXT.clas.abap` | **Да** — процедурный ABAP, CDS не может каскадно создавать |
-| `CheckItems`/`Barriers` (GET) | — | Не реализовано, см. "Открытый вопрос" ниже |
+| `CheckItems`/`Barriers` (GET/CREATE/UPDATE/DELETE отдельно от `CheckRoots`) | — | Не реализовано — решено не реализовывать, см. "Решено: CheckItems/Barriers" ниже |
 
 `@Search.*`/`Consumption.filter` аннотации на переиспользуемых вьюхах уже
 интерпретируются SADL (подтверждено официальной документацией — см. "Что
@@ -73,31 +73,30 @@ Gateway-сервис через Referenced Data Source или "чистый" `@O
 `redux/abap/cds/*` (плюс одна новая — `EffectiveDate`, добавлена этой
 правкой).
 
-## Открытый вопрос: нужны ли CheckItems/Barriers как read/update entity sets
+## Решено: CheckItems/Barriers — только через deep-entity, флага на них нет
 
-`pc_lite/model/metadata.xml` объявляет `CheckItems`/`Barriers`
-`sap:creatable="true" sap:updatable="true" sap:deletable="true"` — но живой
-клиент (`facade/DeepEntityFacade.js`) НИКОГДА не вызывает эти операции
-отдельно: строки уходят единственным deep-create POST'ом на `CheckRoots`, и
-объект после создания не редактируется через OData вообще (нет object
-page). Т.е. эти три флага в контракте сегодня не подкреплены НИ ОДНИМ
-реальным вызовом. Два варианта, продуктовое решение не мной:
+Было открытым вопросом ("нужны ли CheckItems/Barriers как read/update entity
+sets"), закрыто прямым решением по проекту: **флага на `CheckRoots`
+достаточно, на дочерних нодах (`CheckItems`/`Barriers`) флага нет**. Живой
+клиент (`facade/DeepEntityFacade.js`) и так никогда не вызывал `CREATE`/
+`UPDATE`/`DELETE` на них отдельно — строки уходят единственным deep-create
+POST'ом на `CheckRoots` через `to_Checks`/`to_Barriers` (этот канал —
+`NavigationProperty sap:creatable="true"` на `CheckRoot` — не тронут, он и
+есть единственный путь записи для этих сущностей).
 
-1. Оставить как есть (форвард-совместимость на случай будущего
-   редактирования) — тогда `ZCL_CHECK_LITE_DPC_EXT` понадобятся
-   `checkitems_create_entity`/`_update_entity`/`barriers_create_entity`/
-   `_update_entity` (тривиальные, по образцу `redux/abap/classes/
-   ZCL_CHECK_DPC_EXT` — тот же паттерн, INSERT/UPDATE на одну таблицу без
-   бизнес-правил) плюс простые GET-вьюхи (`ZI_Lite_CheckItem`/
-   `ZI_Lite_Barrier`, Code→Text join, без coalesce-хитростей).
-2. Понизить до `sap:creatable="false" sap:updatable="false"
-   sap:deletable="false"` в metadata.xml, честно отразив то, чем сервис
-   реально пользуется сегодня (тот же принцип "контракт не должен
-   утверждать больше, чем есть", которым уже руководствовались при
-   правках `Updatable`/`sap:updatable-path` ранее в этом проекте).
+Применено в `model/metadata.xml`: `CheckItems`/`Barriers`
+`sap:creatable="false" sap:updatable="false" sap:deletable="false"` (было
+`"true"` у всех трёх без единого подтверждённого вызова). Важный нюанс,
+из-за которого нельзя было просто удалить атрибуты: в classic Gateway
+`sap:creatable`/`updatable`/`deletable` по умолчанию (без явного указания)
+— **`"true"`**, не `"false"` — отсутствие атрибута НЕ закрывает
+возможность, нужно явное `"false"`.
 
-Ничего из этого не реализовано в этой правке — оставлено открытым, т.к. это
-не было частью запроса (только "приём и словари").
+Соответствующих `checkitems_create_entity`/`_update_entity`/
+`barriers_create_entity`/`_update_entity` в `ZCL_CHECK_LITE_DPC_EXT` поэтому
+не будет — они были бы декоративным кодом без потребителя (тот же принцип,
+по которому в этом классе нет `ZCL_CHECK_LITE_MPC_EXT`, см. заголовок
+класса).
 
 ## Что найдено и исправлено при аудите (не гипотетически — с доказательствами)
 
@@ -123,23 +122,27 @@ page). Т.е. эти три флага в контракте сегодня не
    соответствующего backend-контракта до этой правки. Добавлено в общую
    вьюху `redux/abap/cds/ZI_LocationHierarchy.ddls.asddls` (не копия) с
    `@Consumption.filter` — см. `redux/abap/ddic/tables.md`.
-3. **Несостыковка: клиент строже контракта.** `pc_lite/model/FormValidator.js`
-   (`REQUIRED_FIELDS`) требует непустой `InspectedPernr`/`InspectorPernr` —
-   т.е. СЕГОДНЯ клиент физически не даёт отправить форму с ФИО текстом без
-   выбора из списка, хотя сам `Input` (`liveChange`, суффлекс) выглядит как
-   свободный ввод, а `$metadata` объявляет `ObserverFullname`/
-   `ObservedFullname` (не `*Pernr`) как `Nullable="false"` — то есть
-   контрактно мандаторно именно ФИО, а не табельный номер. Сообщение
-   валидатора при этом общее ("Укажите проверяемого"/"Укажите проверяющего"
-   — `i18n_ru.properties`) — не поясняет пользователю, что введённого
-   текста недостаточно, нужен именно выбор из подсказки. Не исправлено
-   здесь (продуктовый вопрос — разрешить ли реально свободный текст, или
-   явно потребовать выбор с понятным сообщением — не решается в рамках
-   аудита backend'а), но задокументировано, т.к. пункт 1 выше был бы
-   мёртвым кодом для лайта, если бы этот путь был архитектурно недостижим
-   — он не мёртв: серверная защита нужна независимо от текущей строгости
-   ОДНОГО конкретного клиента (см. также пункт "CheckItems/Barriers" выше —
-   тот же принцип "контракт не должен быть уже, чем возможности API").
+3. **Несостыковка клиент/контракт — решено.** `pc_lite/model/FormValidator.js`
+   (`REQUIRED_FIELDS`) требовал непустой `InspectedPernr`/`InspectorPernr`,
+   а `$metadata` объявлял мандаторным только `ObserverFullname`/
+   `ObservedFullname` (не `*Pernr`) — контрактно достаточно было прислать
+   голый текст без выбора из справочника, хотя клиент такое состояние и не
+   допускал. Прямое решение по проекту: **выбор из справочника обязателен**
+   — контракт приведён в соответствие с уже действующим поведением клиента.
+   Изменено: `ObserverPernr`/`ObservedPernr` теперь тоже `Nullable="false"`
+   в `model/metadata.xml`; `ZCL_CHECK_LITE_DPC_EXT=>VALIDATE_REQUIRED_FIELDS`
+   проверяет `*_pernr` (было — `*_pernr` ИЛИ ручной текст, теперь только
+   `*_pernr`, см. класс). `*_fullname_manual`/coalesce-инфраструктура из
+   пункта 1 не удалена — она остаётся полезной как отображаемое имя и
+   защитой в глубину на случай сырого HTTP-вызова в обход UI (тот же принцип
+   "клиентская валидация — подсказка, не гарантия", уже принятый в
+   `redux/abap/README.md`), просто больше не участвует в решении "принять
+   строку или отклонить" — это теперь целиком на `*_pernr`.
+   Сообщение валидатора на клиенте (`i18n_ru.properties`,
+   `msgValInspected`/`msgValInspector`) по-прежнему общее ("Укажите
+   проверяемого"/"Укажите проверяющего") и не поясняет, что введённого
+   текста недостаточно — это отдельная, самостоятельная UX-полировка,
+   не блокирующая ничего из решённого здесь.
 4. **`redux/abap/README.md`** утверждал единую сервисную топологию,
    противоречащую и текущему `pc_lite/model/metadata.xml`/
    `model/BackendConfig.js` (которые уже явно проектируют отдельный
@@ -208,7 +211,6 @@ NW 7.50 SPS17) и последующему поиску:
 в SICF и `/IWFND/MAINT_SERVICE`, полных сгенерированных SEGW-стабов, ABAP
 Unit тестов на `ZCL_CHECK_LITE_DPC_EXT` (по образцу `redux/tests/
 test_serve.py`, суженному до create-only матрицы: readonly-поля здесь не
-актуальны — на create их и не пришлют осмысленно, — required-fields,
+актуальны — на create их и не пришлют осмысленно, — required-fields
+(включая новую проверку `*_pernr` вместо `*_fullname_manual`),
 conflict-of-interest, ObserverFullname/ObservedFullname 3-tier fallback).
-Плюс решение по "Открытому вопросу" выше, прежде чем писать
-`checkitems_create_entity`/etc.

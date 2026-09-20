@@ -55,6 +55,11 @@ sap.ui.define([
 
       oLocModel.setProperty("/currentParentId", sParentId);
       oLocModel.setProperty("/selectedNodeId", "");
+      // [Поиск по всей иерархии, по запросу] Переход по уровню (клик по
+      // папке, хлебной крошке или открытие диалога) всегда выходит из
+      // режима поиска — навигация по дереву и глобальный поиск не смешиваются
+      // в рамках одного действия, см. buildLocationFilters.
+      oLocModel.setProperty("/searchQuery", "");
       this.byId("locationList").getBinding("items").filter(DictionaryFacade.buildLocationFilters(sParentId, ""));
 
       const aCrumbs = [
@@ -70,7 +75,13 @@ sap.ui.define([
 
     onLocSearch (oEvent) {
       const q = oEvent.getParameter("newValue") || "";
-      const sParentId = this.getView().getModel("locationModel").getProperty("/currentParentId");
+      const oLocModel = this.getView().getModel("locationModel");
+      const sParentId = oLocModel.getProperty("/currentParentId");
+      // [Поиск по всей иерархии, по запросу] searchQuery в модель — только
+      // индикатор "поиск активен" для видимости appLocationPath у найденных
+      // строк (см. LocationDialog.fragment.xml); сам запрос в фильтр уходит
+      // напрямую через buildLocationFilters, не через модель.
+      oLocModel.setProperty("/searchQuery", q);
       this.byId("locationList").getBinding("items").filter(DictionaryFacade.buildLocationFilters(sParentId, q));
     },
 

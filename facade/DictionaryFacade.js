@@ -136,7 +136,20 @@ sap.ui.define([
         // ВСЕХ узлов иерархии при каждой загрузке словарей (O(n*depth) впустую
         // для узлов, которые пользователь никогда не выберет) — вычисляется
         // лениво, только для реально выбранного узла, см. getPath().
-        oLocModel.setData({ items: aLocItems, lookupMap: oLookupMap });
+        // [Fix РЕАЛЬНЫЙ БАГ, найдено при проверке поиска] setData(...) здесь
+        // ЗАМЕНЯЕТ весь объект locationModel целиком, стирая currentParentId/
+        // selectedNodeId/breadcrumbLinks/breadcrumbCurrentText/searchQuery —
+        // все поля, которые ModelsInit.js завёл как начальные значения (и
+        // которые LocationPicker.js читает и пишет через setProperty). На
+        // практике почти незаметно — load() обычно успевает раньше первого
+        // клика по полю "Местоположение", а _navigateLocationLevel
+        // пересоздаёт эти поля заново при каждом открытии диалога — но если
+        // диалог открыть/искать ДО того, как load() отработает (медленная
+        // сеть, самый первый рендер), состояние навигации тихо обнулится
+        // посреди работы. setProperty на /items и /lookupMap — точечное
+        // обновление, соседние поля не трогает.
+        oLocModel.setProperty("/items", aLocItems);
+        oLocModel.setProperty("/lookupMap", oLookupMap);
       });
     }
 
@@ -195,6 +208,11 @@ sap.ui.define([
         NodeID: n.LocationUuid,
         ParentNodeID: n.ParentLocationUuid || "",
         NodeText: n.LocationName || "",
+        // [Поиск по всей иерархии, по запросу] Раньше не переносился вовсе —
+        // не нужен был для drill-down-навигации по ParentNodeID. Нужен для
+        // buildLocationFilters(): в реальной жизни площадку узнают не только
+        // по названию, но и по коду на табличке/в документах ("LOC-003").
+        NodeCode: n.LocationCode || "",
         HierarchyLevel: n.Level
       }));
     }
@@ -425,6 +443,18 @@ sap.ui.define([
       return DictionaryFacade._walkUp(sNodeId, oLookupMap).map((n) => n.NodeText).join(" / ");
     }
 
+    /**
+     * [Поиск по всей иерархии, по запросу] Путь до РОДИТЕЛЯ узла (сам узел
+     * исключён — его имя уже показано отдельно, как основной текст строки).
+     * Нужен только при активном глобальном поиске (см. LocationDialog.
+     * fragment.xml/appLocationPath) — вне поиска все видимые строки и так на
+     * одном уровне, путь избыточен рядом с хлебными крошками сверху диалога.
+     * @returns {string} "Площадка №7 / Цех сборки" или "" для узла верхнего уровня
+     */
+    static getParentPath(sNodeId, oLookupMap) {
+      return DictionaryFacade._walkUp(sNodeId, oLookupMap).slice(0, -1).map((n) => n.NodeText).join(" / ");
+    }
+
     // ===== Drill-down навигация по иерархии (вместо TreeTable) =====
 
     /**
@@ -437,20 +467,40 @@ sap.ui.define([
      * сужается штатным ListBinding.filter() (см. LocationPicker.js). Порядок
      * внутри уровня — тот же, что уже был (исходный порядок /items,
      * Sorter намеренно не добавлен — не менять порядок без явного запроса).
+     *
+     * [Fix РЕАЛЬНЫЙ БАГ, по запросу] Раньше ParentNodeID EQ sParentId стоял
+     * безусловно, а текстовый фильтр только ДОБАВЛЯЛСЯ к нему (AND) — поиск
+     * реально сужал только текущий уровень, а не искал по всей иерархии.
+     * Бесполезно для узла, о котором пользователь не знает путь заранее
+     * (ровно то, ради чего вообще есть строка поиска) — особенно с тех пор,
+     * как в справочнике появились площадки с 3-уровневой вложенностью (см.
+     * model/LocationHierarchy.json). Теперь: пустой запрос — обычная
+     * level-scoped навигация (как раньше), непустой — глобальный поиск по
+     * ВСЕЙ locationModel>/items (ParentNodeID вообще не участвует), по имени
+     * ИЛИ коду. LocationPicker.js#_navigateLocationLevel сбрасывает поле
+     * поиска при каждом переходе по уровню — сценарий "искать, найти,
+     * выбрать" и "листать дерево" не смешиваются в рамках одного действия.
      * @returns {sap.ui.model.Filter[]} для ListBinding#filter()
      */
     static buildLocationFilters(sParentId, sQuery) {
-      const aFilters = [
-        new Filter({ path: "ParentNodeID", operator: FilterOperator.EQ, value1: sParentId || "" })
-      ];
       if (sQuery) {
         // [Уточнение, независимое ревью] caseSensitive:false безопасен — см.
         // идентичный комментарий у buildVhFilters выше: oLocModel тоже
         // JSONModel, фильтр не уходит на сервер (в отличие от
         // PersonSearchFacade.js, где та же комбинация ломала OData-запрос).
-        aFilters.push(new Filter({ path: "NodeText", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false }));
+        return [
+          new Filter({
+            and: false,
+            filters: [
+              new Filter({ path: "NodeText", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false }),
+              new Filter({ path: "NodeCode", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false })
+            ]
+          })
+        ];
       }
-      return aFilters;
+      return [
+        new Filter({ path: "ParentNodeID", operator: FilterOperator.EQ, value1: sParentId || "" })
+      ];
     }
 
     static getBreadcrumbPath(sNodeId, oLookupMap) {

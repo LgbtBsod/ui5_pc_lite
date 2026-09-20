@@ -1,4 +1,9 @@
-sap.ui.define(["sap/ui/core/format/DateFormat", "sap/pc_lite/lite/model/EntityConfig", "sap/pc_lite/lite/model/BusinessRules"], (DateFormat, EntityConfig, BusinessRules) => {
+sap.ui.define([
+  "sap/ui/core/format/DateFormat",
+  "sap/pc_lite/lite/model/EntityConfig",
+  "sap/pc_lite/lite/model/BusinessRules",
+  "sap/pc_lite/lite/facade/DictionaryFacade"
+], (DateFormat, EntityConfig, BusinessRules, DictionaryFacade) => {
   "use strict";
 
   // [SSOT] Тот же исходный паттерн, что util/ODataFormat.js и DatePicker>
@@ -15,6 +20,14 @@ sap.ui.define(["sap/ui/core/format/DateFormat", "sap/pc_lite/lite/model/EntityCo
   class Formatter {
     static locationRowHighlight(sNodeId, sSelectedId) {
       return sNodeId && sNodeId === sSelectedId ? "Information" : "None";
+    }
+
+    // [Поиск по всей иерархии, по запросу] Путь до родителя — только текст,
+    // видимость этой строки (только во время активного поиска) решается
+    // отдельным binding'ом на locationModel>/searchQuery в самой фрагменте,
+    // не здесь — формиттер не знает и не должен знать про searchQuery.
+    static locationRowParentPath(sNodeId, oLookupMap) {
+      return (sNodeId && oLookupMap) ? DictionaryFacade.getParentPath(sNodeId, oLookupMap) : "";
     }
 
     // [Отправка — сводка] dictionaryModel>/_index/<TYPE> уже даёт готовую

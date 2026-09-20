@@ -48,7 +48,14 @@ sap.ui.define([
       // которую раньше вручную пересобирал getChildren/filterLevel.
       locationModel: {
         items: [], lookupMap: {}, currentParentId: "",
-        selectedNodeId: "", breadcrumbLinks: [], breadcrumbCurrentText: ""
+        selectedNodeId: "", breadcrumbLinks: [], breadcrumbCurrentText: "",
+        // [Поиск по всей иерархии, по запросу] Признак "сейчас активен
+        // глобальный поиск" — по этому свойству, а не по непустоте текста в
+        // самом SearchField (который недоступен через модель), решается
+        // видимость пути-подсказки под каждой найденной строкой (см.
+        // LocationDialog.fragment.xml). Держит то же значение, что реально
+        // ушло в buildLocationFilters — см. LocationPicker.js#onLocSearch.
+        searchQuery: ""
       },
       inspectedPersonModel: { items: [] },
       inspectorPersonModel: { items: [] },
