@@ -31,7 +31,9 @@
         <Column width="40%" minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colBarrier}"/>
         </Column>
-        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+        <!-- Комментарий — колонкой только с Desktop (1024px): на планшете рядом с 40% кода
+             и 15rem результата ему оставалось ~50px, он уходит под строку. -->
+        <Column minScreenWidth="Desktop" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colComment}"/>
         </Column>
         <!-- [Fix, замер] 15rem: "Неудовлетворительно" + стрелка Select не влезали. -->

@@ -1216,6 +1216,12 @@ html.pclLight .appLocationRowBtn.sapMBtn .sapMBtnInner .sapMBtnIcon {
   color: var(--pcl-label) !important;
 }
 
+/* Путь до родителя у найденного узла (глобальный поиск) — под названием узла,
+   а не от края строки: отступ = внутренний padding кнопки + иконка + gap. */
+html.pclApp .appLocationRow .appLocationPath.sapMText {
+  padding: 0 .75rem .5rem 3rem !important;
+}
+
 /* ===== Диалог выбора проверки/барьера (SelectDialog) ===== */
 html.pclApp .appVhGroupHeader.sapMLIB {
   min-height: auto !important;

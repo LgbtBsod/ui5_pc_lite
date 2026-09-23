@@ -32,7 +32,10 @@
            что уже подключена, новых зависимостей нет. -->
       <WizardProgressNavigator id="progressNav" class="appProgressNav"/>
 
-      <NavContainer id="stepNav" class="appStepNav">
+      <!-- autoFocus="false": фокусом шага управляет _focusStepHeading; штатный
+           autoFocus фокусировал первый фокусируемый элемент страницы (на шаге 6 —
+           список сводки) и браузер прокручивал страницу к нему, пряча заголовок. -->
+      <NavContainer id="stepNav" class="appStepNav" autoFocus="false">
         <pages>
 
           <Page id="pageWhen" showHeader="false" showFooter="false" class="appStepPage">

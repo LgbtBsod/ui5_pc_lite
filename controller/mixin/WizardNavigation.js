@@ -59,6 +59,9 @@ sap.ui.define([
     // ManagedObject для поиска потомка по предикату, а не самодельный обход
     // дерева контролов.
     _focusStepHeading (oPage) {
+      // Каждый шаг открывается с начала, а не с позиции прошлого визита
+      // (sap.m.Page запоминает прокрутку между показами).
+      if (oPage.scrollTo) { oPage.scrollTo(0, 0); }
       const oHeading = oPage.findAggregatedObjects(true, (oCtrl) => oCtrl.hasStyleClass && oCtrl.hasStyleClass("appStepHeading"))[0];
       const oDom = oHeading && oHeading.getDomRef();
       if (oDom) {
