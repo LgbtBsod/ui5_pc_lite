@@ -23,7 +23,11 @@
              табельным номером ПОД полем, тот же приём, что уже применён к
              Местоположению (locationPath ниже показывает полный путь под
              обрезающимся Input) — тот номер виден всегда целиком, даже когда
-             само поле обрезало отображаемое имя. -->
+             само поле обрезало отображаемое имя.
+             [Fix SF-05/UX-06] filterSuggests="false": фильтр — только фасад
+             (нормализация ё/е, любой порядок слов); встроенный word-startsWith
+             sap.m.Input прятал найденные им строки. Pernr в само значение
+             больше не дописывается (FN-06) — он только в подписи ниже. -->
         <Label text="{i18n>lblInspected}" labelFor="inspectedInput" class="appLabel"/>
         <VBox class="appLocationVBox">
           <Input id="inspectedInput"
@@ -31,7 +35,9 @@
                  placeholder="{i18n>phPersonSearch}"
                  showSuggestion="true"
                  suggestionItems="{path:'inspectedPersonModel>/items', parameters:{templateShareable:true}}"
+                 filterSuggests="false"
                  liveChange="onPersonLiveChange"
+                 change="onPersonChange"
                  suggestionItemSelected="onInspectedSelected"
                  class="appInput"
                  data:role="inspected">
@@ -51,7 +57,9 @@
                  placeholder="{i18n>phPersonSearch}"
                  showSuggestion="true"
                  suggestionItems="{path:'inspectorPersonModel>/items', parameters:{templateShareable:true}}"
+                 filterSuggests="false"
                  liveChange="onPersonLiveChange"
+                 change="onPersonChange"
                  suggestionItemSelected="onInspectorSelected"
                  class="appInput"
                  data:role="inspector">

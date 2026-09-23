@@ -2,11 +2,23 @@ sap.ui.define([
   "sap/pc_lite/lite/model/BackendConfig",
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
-  "sap/ui/model/Sorter"
-], (BackendConfig, Filter, FilterOperator, Sorter) => {
+  "sap/ui/model/Sorter",
+  "sap/pc_lite/lite/util/SearchText"
+], (BackendConfig, Filter, FilterOperator, Sorter, SearchText) => {
   "use strict";
 
   const ES = BackendConfig.ENTITY_SETS;
+  // [Fix PF-07] Ровно поля, нужные _latestPerLocationCode/_normalizeLocationRows.
+  const LOCATION_SELECT = "LocationUuid,LocationCode,LocationName,ParentLocationUuid,EffectiveDate";
+  // [Fix FN-11/SF-04] Счётчик "самой свежей" загрузки иерархии на locationModel:
+  // ответ load()/loadLocations() для более старой даты проверки не затирает новый.
+  const oLocSeqByModel = new WeakMap();
+
+  function nextLocSeq(oLocModel) {
+    const iSeq = (oLocSeqByModel.get(oLocModel) || 0) + 1;
+    oLocSeqByModel.set(oLocModel, iSeq);
+    return iSeq;
+  }
 
   // [Fix РЕАЛЬНЫЙ БАГ, по запросу] aFilters — четвёртый, опциональный параметр
   // (не менял существующую сигнатуру для остальных 7 вызовов в load() ниже,
@@ -52,6 +64,7 @@ sap.ui.define([
       // и та же ZCHK_LOCH-строка не может считаться и родительской, и
       // переименованной одновременно, актуальную версию решает дата).
       const oLocFilter = DictionaryFacade._buildLocationAsOfFilter(sCheckDate);
+      const iLocSeq = nextLocSeq(oLocModel);
 
       // Раньше — один /I_Dictionary с DictType-дискриминатором. Целевая модель
       // (redux) не имеет общего справочника — 6 раздельных EntitySet, каждый
@@ -80,7 +93,7 @@ sap.ui.define([
         { key: "PKLEVEL", promise: readEntitySet(oModel, `/${ES.PK_LEVELS}`, { "$select": "PkLevel,PkLevelText" }) },
         { key: "TIMEZONE", promise: readEntitySet(oModel, `/${ES.TIME_ZONES}`, { "$select": "TimeZoneCode,TimeZoneText" }) },
         { key: "PROFESSION", promise: readEntitySet(oModel, `/${ES.PROFESSIONS}`, { "$select": "ProfessionCode,ProfessionText" }) },
-        { key: "LOCATION", promise: readEntitySet(oModel, `/${ES.LOCATION_HIERARCHY}`, undefined, oLocFilter ? [oLocFilter] : undefined) },
+        { key: "LOCATION", promise: readEntitySet(oModel, `/${ES.LOCATION_HIERARCHY}`, { "$select": LOCATION_SELECT }, oLocFilter ? [oLocFilter] : undefined) },
         // [Механизм авто-добавления строк по КПР] Тот же батч, что и остальные
         // справочники — ни одного лишнего запроса ни при загрузке, ни при
         // смене уровня КПР (см. getAutoRowsForPk — чистый клиентский lookup
@@ -100,57 +113,81 @@ sap.ui.define([
         oDict.AUTO_ROWS = DictionaryFacade._buildAutoRowIndex(oByKey.AUTO_ROW_RULES);
         oDictModel.setData(oDict);
 
-        // [Fix РЕАЛЬНЫЙ БАГ, по запросу] Сервер уже отсеял строки, не
-        // действующие на дату проверки (EffectiveDate le :checkDate, см.
-        // _buildLocationAsOfFilter) — но этого недостаточно самого по себе:
-        // одна и та же LocationCode может иметь НЕСКОЛЬКО строк, всё ещё
-        // прошедших этот фильтр (например, площадка переименована дважды,
-        // обе более ранние версии всё ещё <= дате проверки) — нужна именно
-        // ПОСЛЕДНЯЯ из них, не все сразу. _latestPerLocationCode берёт
-        // max(EffectiveDate) в каждой группе по LocationCode — до
-        // нормализации в NodeID/NodeText, пока LocationCode/EffectiveDate
-        // ещё есть на сырой строке (_normalizeLocationRows их не переносит).
-        const aLocLatest = DictionaryFacade._latestPerLocationCode(oByKey.LOCATION);
-
-        // [Fix регрессии] LocationHierarchy (redux) отдаёт LocationUuid/
-        // LocationName/ParentLocationUuid — но locationModel,
-        // LocationDialog.fragment.xml и Main.controller.js
-        // (onLocationRowSelect, _navigateLocationLevel и т.д.) писаны под
-        // NodeID/NodeText/ParentNodeID. Нормализуем здесь, на границе —
-        // внутренний контракт locationModel не меняется.
-        const aLocItems = DictionaryFacade._normalizeLocationRows(aLocLatest);
-        const oLookupMap = DictionaryFacade._buildLookupMap(aLocItems);
-
-        // [Fix "не изобретать велосипед", аудит] HasChildren проштамповывается
-        // на сами элементы /items здесь же — LocationDialog теперь биндит
-        // List НАПРЯМУЮ на locationModel>/items и сужает видимый уровень
-        // штатным sap.ui.model.Filter (ParentNodeID) вместо пересчёта
-        // отдельного производного /levelItems массива в JS на каждый клик
-        // (см. LocationPicker.js). Это единственное поле, которого не было
-        // в исходных данных с сервера (см. _buildLookupMap выше) и которое
-        // нужно как обычное, бинduемое свойство строки, а не как отдельная
-        // структура, до которой добираться через lookupMap на каждый рендер.
-        aLocItems.forEach((n) => { n.HasChildren = oLookupMap[n.NodeID].hasChildren; });
-
-        // [Fix YAGNI/Perf] Путь (LocationPath) больше не предвычисляется для
-        // ВСЕХ узлов иерархии при каждой загрузке словарей (O(n*depth) впустую
-        // для узлов, которые пользователь никогда не выберет) — вычисляется
-        // лениво, только для реально выбранного узла, см. getPath().
-        // [Fix РЕАЛЬНЫЙ БАГ, найдено при проверке поиска] setData(...) здесь
-        // ЗАМЕНЯЕТ весь объект locationModel целиком, стирая currentParentId/
-        // selectedNodeId/breadcrumbLinks/breadcrumbCurrentText/searchQuery —
-        // все поля, которые ModelsInit.js завёл как начальные значения (и
-        // которые LocationPicker.js читает и пишет через setProperty). На
-        // практике почти незаметно — load() обычно успевает раньше первого
-        // клика по полю "Местоположение", а _navigateLocationLevel
-        // пересоздаёт эти поля заново при каждом открытии диалога — но если
-        // диалог открыть/искать ДО того, как load() отработает (медленная
-        // сеть, самый первый рендер), состояние навигации тихо обнулится
-        // посреди работы. setProperty на /items и /lookupMap — точечное
-        // обновление, соседние поля не трогает.
-        oLocModel.setProperty("/items", aLocItems);
-        oLocModel.setProperty("/lookupMap", oLookupMap);
+        if (iLocSeq === oLocSeqByModel.get(oLocModel)) {
+          DictionaryFacade._applyLocationRows(oLocModel, oByKey.LOCATION);
+        }
       });
+    }
+
+    /**
+     * [Fix FN-11/SF-04, аудит] Перечитывает ТОЛЬКО иерархию местоположений на
+     * новую дату проверки — load() целиком не повторяется (его setData на
+     * dictionaryModel стёр бы справочники).
+     * @returns {Promise<boolean>} true — применено; false — устарело (дату уже сменили снова)
+     */
+    static loadLocations(oModel, oLocModel, sCheckDate) {
+      const iLocSeq = nextLocSeq(oLocModel);
+      const oLocFilter = DictionaryFacade._buildLocationAsOfFilter(sCheckDate);
+      return oModel.metadataLoaded()
+        .then(() => readEntitySet(oModel, `/${ES.LOCATION_HIERARCHY}`, { "$select": LOCATION_SELECT }, oLocFilter ? [oLocFilter] : undefined))
+        .then((aRows) => {
+          if (iLocSeq !== oLocSeqByModel.get(oLocModel)) { return false; }
+          DictionaryFacade._applyLocationRows(oLocModel, aRows);
+          return true;
+        });
+    }
+
+    static _applyLocationRows(oLocModel, aRows) {
+      // [Fix РЕАЛЬНЫЙ БАГ, по запросу] Сервер уже отсеял строки, не
+      // действующие на дату проверки (EffectiveDate le :checkDate, см.
+      // _buildLocationAsOfFilter) — но этого недостаточно самого по себе:
+      // одна и та же LocationCode может иметь НЕСКОЛЬКО строк, всё ещё
+      // прошедших этот фильтр (например, площадка переименована дважды,
+      // обе более ранние версии всё ещё <= дате проверки) — нужна именно
+      // ПОСЛЕДНЯЯ из них, не все сразу. _latestPerLocationCode берёт
+      // max(EffectiveDate) в каждой группе по LocationCode — до
+      // нормализации в NodeID/NodeText, пока LocationCode/EffectiveDate
+      // ещё есть на сырой строке (_normalizeLocationRows их не переносит).
+      const aLocLatest = DictionaryFacade._latestPerLocationCode(aRows);
+
+      // [Fix регрессии] LocationHierarchy (redux) отдаёт LocationUuid/
+      // LocationName/ParentLocationUuid — но locationModel,
+      // LocationDialog.fragment.xml и Main.controller.js
+      // (onLocationRowSelect, _navigateLocationLevel и т.д.) писаны под
+      // NodeID/NodeText/ParentNodeID. Нормализуем здесь, на границе —
+      // внутренний контракт locationModel не меняется.
+      const aLocItems = DictionaryFacade._normalizeLocationRows(aLocLatest);
+      const oLookupMap = DictionaryFacade._buildLookupMap(aLocItems);
+
+      // [Fix "не изобретать велосипед", аудит] HasChildren проштамповывается
+      // на сами элементы /items здесь же — LocationDialog теперь биндит
+      // List НАПРЯМУЮ на locationModel>/items и сужает видимый уровень
+      // штатным sap.ui.model.Filter (ParentNodeID) вместо пересчёта
+      // отдельного производного /levelItems массива в JS на каждый клик
+      // (см. LocationPicker.js). Это единственное поле, которого не было
+      // в исходных данных с сервера (см. _buildLookupMap выше) и которое
+      // нужно как обычное, бинduемое свойство строки, а не как отдельная
+      // структура, до которой добираться через lookupMap на каждый рендер.
+      aLocItems.forEach((n) => { n.HasChildren = oLookupMap[n.NodeID].hasChildren; });
+
+      // [Fix YAGNI/Perf] Путь (LocationPath) больше не предвычисляется для
+      // ВСЕХ узлов иерархии при каждой загрузке словарей (O(n*depth) впустую
+      // для узлов, которые пользователь никогда не выберет) — вычисляется
+      // лениво, только для реально выбранного узла, см. getPath().
+      // [Fix РЕАЛЬНЫЙ БАГ, найдено при проверке поиска] setData(...) здесь
+      // ЗАМЕНЯЕТ весь объект locationModel целиком, стирая currentParentId/
+      // selectedNodeId/breadcrumbLinks/breadcrumbCurrentText/searchQuery —
+      // все поля, которые ModelsInit.js завёл как начальные значения (и
+      // которые LocationPicker.js читает и пишет через setProperty). На
+      // практике почти незаметно — load() обычно успевает раньше первого
+      // клика по полю "Местоположение", а _navigateLocationLevel
+      // пересоздаёт эти поля заново при каждом открытии диалога — но если
+      // диалог открыть/искать ДО того, как load() отработает (медленная
+      // сеть, самый первый рендер), состояние навигации тихо обнулится
+      // посреди работы. setProperty на /items и /lookupMap — точечное
+      // обновление, соседние поля не трогает.
+      oLocModel.setProperty("/items", aLocItems);
+      oLocModel.setProperty("/lookupMap", oLookupMap);
     }
 
     // [Fix РЕАЛЬНЫЙ БАГ, по запросу] Зеркалит PersonSearchFacade.js#
@@ -213,7 +250,8 @@ sap.ui.define([
         // buildLocationFilters(): в реальной жизни площадку узнают не только
         // по названию, но и по коду на табличке/в документах ("LOC-003").
         NodeCode: n.LocationCode || "",
-        HierarchyLevel: n.Level
+        // [Fix SF-02] Предвычисленный нормализованный ключ поиска (см. buildLocationFilters).
+        SearchKey: SearchText.normalize(`${n.LocationName || ""} ${n.LocationCode || ""}`)
       }));
     }
 
@@ -225,8 +263,8 @@ sap.ui.define([
     // позиционного массива — см. подробное обоснование в load() выше.
     static _buildDictionary(oByKey) {
       const oDict = {
-        CHECKS: oByKey.CHECKS.map((e) => ({ Code: e.CheckTypeCode, Text: e.CheckTypeText, Category: e.Category || "", PkLevels: e.PkLevels || "" })),
-        BARRIERS: oByKey.BARRIERS.map((e) => ({ Code: e.BarrierTypeCode, Text: e.BarrierTypeText, Category: e.Category || "", PkLevels: e.PkLevels || "" })),
+        CHECKS: oByKey.CHECKS.map((e) => DictionaryFacade._vhEntry(e.CheckTypeCode, e.CheckTypeText, e)),
+        BARRIERS: oByKey.BARRIERS.map((e) => DictionaryFacade._vhEntry(e.BarrierTypeCode, e.BarrierTypeText, e)),
         STATUS: oByKey.STATUS.map((e) => ({ Code: e.ResultCode, Text: e.ResultText })),
         TIMEZONE: oByKey.TIMEZONE.map((e) => ({ Code: e.TimeZoneCode, Text: e.TimeZoneText })),
         PKLEVEL: oByKey.PKLEVEL.map((e, i) => ({ Code: e.PkLevel, Text: e.PkLevelText, SortOrder: i + 1 })),
@@ -237,6 +275,14 @@ sap.ui.define([
         oDict[k].sort((a, b) => bHasSortOrder ? a.SortOrder - b.SortOrder : (a.Code < b.Code ? -1 : 1));
       });
       return oDict;
+    }
+
+    // [Fix SF-02] SearchKey — нормализованный "Text Code" для value-help поиска.
+    static _vhEntry(sCode, sText, e) {
+      return {
+        Code: sCode, Text: sText, Category: e.Category || "", PkLevels: e.PkLevels || "",
+        SearchKey: SearchText.normalize(`${sText || ""} ${sCode || ""}`)
+      };
     }
 
     static _buildIndex(oDict) {
@@ -326,25 +372,31 @@ sap.ui.define([
           test: (sPkLevels) => DictionaryFacade._pkLevelsInclude({ PkLevels: sPkLevels }, sPkLevel)
         })
       ];
-      if (sQuery) {
-        // [Уточнение, независимое ревью] caseSensitive:false здесь БЕЗОПАСЕН
-        // именно потому, что oDictModel — JSONModel: фильтрация идёт через
-        // ClientListBinding/FilterProcessor целиком в памяти браузера, без
-        // единого OData-запроса. Это НЕ тот же случай, что уже пойман в
-        // facade/PersonSearchFacade.js — там та же пара
-        // FilterOperator.Contains + caseSensitive:false ломала сам HTTP-
-        // запрос (ODataModel заворачивает сравнение в tolower(...), которую
-        // MockServer 1.71 не понимает и роняет запрос целиком). Здесь
-        // сервера в цепочке нет вообще — сравнивать не с чем.
-        aFilters.push(new Filter({
-          filters: [
-            new Filter({ path: "Text", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false }),
-            new Filter({ path: "Code", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false })
-          ],
-          and: false
-        }));
+      const oSearch = DictionaryFacade._buildSearchKeyFilter(sQuery);
+      if (oSearch) {
+        aFilters.push(oSearch);
       }
       return aFilters;
+    }
+
+    /**
+     * [Fix SF-02, аудит] Нормализованный поиск (регистр, ё/е, пробелы, любой
+     * порядок слов) по предвычисленному SearchKey — один test-Filter вместо
+     * пары Contains по Text/Code. caseSensitive:true — чтобы FilterProcessor
+     * не делал toUpperCase() значения до test() (см. комментарий выше).
+     * JSONModel: фильтр целиком клиентский, на сервер не уходит.
+     * @returns {sap.ui.model.Filter|null} null для пустого запроса
+     */
+    static _buildSearchKeyFilter(sQuery) {
+      const aTokens = SearchText.tokens(sQuery);
+      if (!aTokens.length) {
+        return null;
+      }
+      return new Filter({
+        path: "SearchKey",
+        caseSensitive: true,
+        test: (sKey) => SearchText.matchTokens(sKey, aTokens)
+      });
     }
 
     /** @returns {sap.ui.model.Sorter} группировка по Category — коробочные группы sap.m.List. */
@@ -361,17 +413,15 @@ sap.ui.define([
      * sap.ui.model.Filter — считать через реальный ListBinding ради одних
      * только чисел избыточно), а не потому что это второй источник истины:
      * "видим по PkLevel" — та же _pkLevelsInclude, "видим по поиску" — та же
-     * семантика FilterOperator.Contains/caseSensitive:false, один case-fold.
+     * семантика SearchText (тот же SearchKey и те же токены).
      */
     static buildCategoryCounts(oDictModel, sDictType, sPkLevel, sQuery) {
       const aAll = oDictModel.getProperty(`/${sDictType}`) || [];
-      const sQueryLower = (sQuery || "").toLowerCase();
+      const aTokens = SearchText.tokens(sQuery);
       const oCounts = {};
       aAll.forEach((e) => {
         if (!DictionaryFacade._pkLevelsInclude(e, sPkLevel)) { return; }
-        if (sQueryLower &&
-            (e.Text || "").toLowerCase().indexOf(sQueryLower) === -1 &&
-            (e.Code || "").toLowerCase().indexOf(sQueryLower) === -1) { return; }
+        if (aTokens.length && !SearchText.matchTokens(e.SearchKey, aTokens)) { return; }
         const sCat = e.Category || "";
         oCounts[sCat] = (oCounts[sCat] || 0) + 1;
       });
@@ -483,20 +533,11 @@ sap.ui.define([
      * @returns {sap.ui.model.Filter[]} для ListBinding#filter()
      */
     static buildLocationFilters(sParentId, sQuery) {
-      if (sQuery) {
-        // [Уточнение, независимое ревью] caseSensitive:false безопасен — см.
-        // идентичный комментарий у buildVhFilters выше: oLocModel тоже
-        // JSONModel, фильтр не уходит на сервер (в отличие от
-        // PersonSearchFacade.js, где та же комбинация ломала OData-запрос).
-        return [
-          new Filter({
-            and: false,
-            filters: [
-              new Filter({ path: "NodeText", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false }),
-              new Filter({ path: "NodeCode", operator: FilterOperator.Contains, value1: sQuery, caseSensitive: false })
-            ]
-          })
-        ];
+      // [Fix SF-02] Тот же нормализованный поиск, что и в value-help (SearchKey
+      // = NodeText + NodeCode); запрос из одних пробелов — обычная навигация.
+      const oSearch = DictionaryFacade._buildSearchKeyFilter(sQuery);
+      if (oSearch) {
+        return [oSearch];
       }
       return [
         new Filter({ path: "ParentNodeID", operator: FilterOperator.EQ, value1: sParentId || "" })

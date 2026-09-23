@@ -3,6 +3,7 @@
   xmlns:core="sap.ui.core"
   xmlns:data="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
 
+  <!-- stretch на телефоне выставляется программно (LocationPicker.js#onLocationValueHelp). -->
   <Dialog id="locationDialog" title="{i18n>vhLocationTitle}" stretch="false"
           contentWidth="480px" resizable="true" class="appDialog">
     <content>
@@ -40,13 +41,15 @@
              без виртуализации — реальная стоимость рендера на мобильных
              устройствах, для которых это приложение и делается. growing
              не требует изменений на сервере/в metadata.xml — чисто
-             клиентское поведение sap.m.List, доступное в UI5 1.71 как есть. -->
+             клиентское поведение sap.m.List, доступное в UI5 1.71 как есть.
+             [Fix SF-08] noDataText по режиму: в поиске — "ничего не найдено",
+             при навигации — "в узле нет вложенных элементов". -->
         <List id="locationList"
               items="{path:'locationModel>/items', parameters:{templateShareable:true}}"
               mode="None"
               growing="true"
               growingScrollToLoad="true"
-              noDataText="{i18n>msgLocEmptyLevel}"
+              noDataText="{= ${locationModel>/searchQuery} ? ${i18n>msgLocNoMatch} : ${i18n>msgLocEmptyLevel} }"
               class="appLocationList">
           <CustomListItem highlight="{parts: [{path:'locationModel>NodeID'}, {path:'locationModel>/selectedNodeId'}], formatter: '.formatter.locationRowHighlight'}"
                           class="appLocationRow">

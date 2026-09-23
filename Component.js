@@ -20,6 +20,20 @@ sap.ui.define([
   // standalone index.html. Redux (сосед по этому же каталогу/бэкенду) уже
   // использует правильный namespace "sap.pc_lite.check" — "sap.pc_lite.lite"
   // держит ту же схему именования, отличаясь только последним сегментом.
+  // [Fix VH-02/VH-03] Маркеры на <html> для css/style.css: "pclApp" — пока жив
+  // хотя бы один экземпляр компонента (раскладка), "pclLight" — плюс светлая
+  // тема (цвета Horizon). В *_dark/*_hcb/*_hcw и прочих темах цвета рисует сама
+  // тема. Класс на <html>, а не на root view: попапы живут в static area.
+  const APP_CLASS = "pclApp";
+  const LIGHT_THEME_CLASS = "pclLight";
+  const LIGHT_THEME_RE = /^sap_(fiori_3|horizon|belize|bluecrystal)$/;
+  let iLiveInstances = 0;
+
+  function syncThemeClass () {
+    const sTheme = sap.ui.getCore().getConfiguration().getTheme();
+    document.documentElement.classList.toggle(LIGHT_THEME_CLASS, iLiveInstances > 0 && LIGHT_THEME_RE.test(sTheme));
+  }
+
   return UIComponent.extend("sap.pc_lite.lite.Component", {
 
     metadata: {
@@ -40,10 +54,21 @@ sap.ui.define([
       // запрос (если бы такой появился на уровне Component) остался бы без
       // логирования сбоя.
       ErrorHandler.install(this);
+
+      iLiveInstances += 1;
+      document.documentElement.classList.add(APP_CLASS);
+      syncThemeClass();
+      sap.ui.getCore().attachThemeChanged(syncThemeClass);
     },
 
     exit (...args) {
       PersonSearchFacade.clearCache();
+      sap.ui.getCore().detachThemeChanged(syncThemeClass);
+      iLiveInstances = Math.max(0, iLiveInstances - 1);
+      if (iLiveInstances === 0) {
+        document.documentElement.classList.remove(APP_CLASS);
+      }
+      syncThemeClass();
       UIComponent.prototype.exit.apply(this, args);
     }
   });

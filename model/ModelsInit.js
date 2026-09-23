@@ -6,6 +6,9 @@ sap.ui.define([
 ], (JSONModel, EntityConfig, WizardSteps, ODataFormat) => {
   "use strict";
 
+  // [Fix PF-02] Потолок list-биндингов dictionaryModel (вместо 100 по умолчанию).
+  const DICT_SIZE_LIMIT = 5000;
+
   // [Fix Performance/Memory] Раньше _resetForm() в Main.controller.js звал
   // ModelsInit.createAll() целиком (7 JSONModel-инстансов), а использовал
   // только 5 — dictionaryModel/locationModel/constraintsModel/vhModel
@@ -71,7 +74,8 @@ sap.ui.define([
       // #_bindVhList) вместо отдельного плоского массива "заголовок+элементы",
       // который раньше вручную строил buildDisplayItems. categoryCounts — то,
       // чем реально пользуется groupHeaderFactory (числа в заголовках групп).
-      vhModel: { dictType: "", dialogTitle: "", categoryCounts: {}, targetType: "", rowIndex: -1 },
+      // usedCodes — [Fix SF-10] {code: true} кодов из других строк (пометка "Уже добавлено").
+      vhModel: { dictType: "", dialogTitle: "", categoryCounts: {}, targetType: "", rowIndex: -1, usedCodes: {} },
       // [Поэтапный ввод] currentStep — какой экран NavContainer сейчас виден
       // (см. Main.controller.js#_goToStep/_onProgressNavStepChanged);
       // totalSteps — [Fix SSOT, аудит] то же WizardSteps.TOTAL_STEPS, что
@@ -90,6 +94,10 @@ sap.ui.define([
       Object.keys(oDefaults).forEach((sKey) => {
         oModels[sKey] = new JSONModel(oDefaults[sKey]);
       });
+      // [Fix PF-02, аудит] Лимит JSONModel по умолчанию — 100 элементов на
+      // list-биндинг: ComboBox часовых поясов/профессий и value-help молча
+      // показывали только первые 100 записей справочника.
+      oModels.dictionaryModel.setSizeLimit(DICT_SIZE_LIMIT);
       return oModels;
     }
 

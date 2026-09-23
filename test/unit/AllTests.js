@@ -1,9 +1,12 @@
 sap.ui.define([
-  "test/unit/facade/DeepEntityFacadeTest"
-  // [Fix Тестируемость, аудит] Единственный тестовый модуль на сегодня —
-  // намеренно узкий охват (см. подробное обоснование в самом файле). Новый
-  // модуль тестов подключается сюда же одной строкой — единственное место,
-  // перечисляющее набор тестов для unitTests.qunit.html/testsuite.qunit.html.
+  "test/unit/facade/DeepEntityFacadeTest",
+  "test/unit/facade/PersonSearchFacadeTest",
+  "test/unit/facade/DictionaryFacadeSearchTest",
+  "test/unit/util/SearchTextTest",
+  "test/unit/util/ODataFormatTest"
+  // [Fix Тестируемость, аудит] Единственное место, перечисляющее набор
+  // тестов для unitTests.qunit.html/testsuite.qunit.html — новый модуль
+  // тестов подключается сюда же одной строкой.
 ], () => {
   "use strict";
 });

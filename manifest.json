@@ -67,6 +67,12 @@
         }
       }
     },
+    "services": {
+      "ShellUIService": {
+        "factoryName": "sap.ushell.ui5service.ShellUIService",
+        "optional": true
+      }
+    },
     "resources": {
       "css": [
         { "uri": "css/style.css" }

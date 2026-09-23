@@ -2,7 +2,6 @@ sap.ui.define([
   "sap/ui/core/mvc/Controller",
   "sap/ui/core/Fragment",
   "sap/m/MessageBox",
-  "sap/m/MessageToast",
   "sap/m/BusyDialog",
   "sap/base/Log",
   "sap/pc_lite/lite/model/formatter",
@@ -15,7 +14,7 @@ sap.ui.define([
   "sap/pc_lite/lite/controller/mixin/PersonSearch",
   "sap/pc_lite/lite/controller/mixin/RowsAndAutoFill",
   "sap/pc_lite/lite/controller/mixin/Submit"
-], (Controller, Fragment, MessageBox, MessageToast, BusyDialog, Log,
+], (Controller, Fragment, MessageBox, BusyDialog, Log,
              formatter, WizardSteps, FormValidator, DictionaryFacade,
              WizardNavigation, DictionaryValueHelp, LocationPicker, PersonSearch, RowsAndAutoFill, Submit) => {
   "use strict";
@@ -55,7 +54,10 @@ sap.ui.define([
 
     onInit () {
       this._oDialogs = {};
+      this._bDestroyed = false;
+      this._bShellDirty = false;
       this._syncBrowserTabTitle();
+      this._initShellIntegration();
       this._loadDictionaries();
       // [Fix "не изобретать велосипед", по запросу] Регистрация моделей как
       // MessageProcessor — разовая, на весь app-lifetime (см.
@@ -124,7 +126,44 @@ sap.ui.define([
       document.title = this.getResourceBundle().getText("appTitle");
     },
 
+    // Тот же защитный паттерн присутствия ushell.Container, что и в
+    // MockServerBootstrap.js#_isFlp: вне FLP (standalone index.html) его нет.
+    _getUshellContainer () {
+      const oUshell = window.sap && window.sap.ushell;
+      return (oUshell && oUshell.Container) || null;
+    },
+
+    // [Fix VH-08] В FLP заголовок приложения уже в шелл-баре — свой header
+    // страницы дублировал его (две строки на телефоне). Standalone — остаётся.
+    // [Fix WZ-07] ShellUIService (manifest sap.ui5/services, optional) нужен
+    // для setBackNavigation — стрелка шелла ведёт на предыдущий шаг wizard'а
+    // (WizardNavigation.js#_updateShellBackNavigation). Вне FLP промис
+    // отклоняется — это штатно, сервиса просто нет.
+    _initShellIntegration () {
+      const bInFlp = !!this._getUshellContainer();
+      this.byId("page").setShowHeader(!bInFlp);
+      if (!bInFlp) { return; }
+      this.getOwnerComponent().getService("ShellUIService").then((oService) => {
+        if (this._bDestroyed) { return; }
+        this._oShellUIService = oService;
+        this._updateShellBackNavigation(this.getView().getModel("wizardModel").getProperty("/currentStep"));
+      }, (oErr) => {
+        Log.warning("ShellUIService unavailable", oErr && oErr.message, LOG_COMPONENT);
+      });
+    },
+
     onExit () {
+      // [Fix FN-12] Асинхронные продолжения (загрузка справочников, submit,
+      // ShellUIService) проверяют этот флаг и не трогают уничтоженный View.
+      this._bDestroyed = true;
+      clearTimeout(this._iStepTransitionTimer);
+      // [Fix FN-12, FLP] Dirty-флаг Container глобален на всю FLP-сессию —
+      // снимаем, чтобы не достался следующему приложению. Back-навигацию
+      // шелл сбрасывает сам при смене приложения (вызов от уже неактивного
+      // компонента он лишь отклонит с warning) — здесь только отпускаем ссылку.
+      this._setShellDirty(false);
+      this._oShellUIService = null;
+
       // [Fix утечка ресурсов, аудит] Симметрично registerProcessors в onInit —
       // см. подробное обоснование у FormValidator.unregisterProcessors.
       FormValidator.unregisterProcessors(
@@ -186,11 +225,8 @@ sap.ui.define([
           oMatch = aTz.find((e) => (e.Text || "").indexOf(sCity) > -1);
         }
 
-        if (!oMatch) {
-          const iOffset = -new Date().getTimezoneOffset() / 60;
-          const sOffset = `UTC+${iOffset >= 10 ? iOffset : `0${iOffset}`}`;
-          oMatch = aTz.find((e) => e.Code === sOffset);
-        }
+        // [Fix FN-14] Удалён fallback по "UTC+NN": коды справочника — IANA-имена,
+        // он не совпадал никогда. Нет совпадения — поле пустое, выбор вручную.
 
         if (oMatch) {
           this.getView().getModel("formModel").setProperty("/TimeZone", oMatch.Code);
@@ -210,7 +246,7 @@ sap.ui.define([
     // и реальный inbound (Intent-createChecks), то есть это НАСТОЯЩЕЕ
     // FLP-приложение, а не автономная страница, и именно для transactional-
     // приложений шелл поддерживает штатный "у вас есть несохранённые
-    // изменения, всё равно уйти?" через ShellUIService.setDirtyFlag. Без
+    // изменения, всё равно уйти?" через Container.setDirtyFlag. Без
     // этого пользователь, ушедший с плитки на середине заполнения (кнопка
     // "Домой", другая плитка), терял всё введённое без единого
     // предупреждения. Отдельная забота от намеренного отсутствия backend-
@@ -218,27 +254,18 @@ sap.ui.define([
     // подключение к УЖЕ существующему нативному диалогу шелла, не
     // добавление своего собственного цикла черновиков.
     //
-    // [Fix, аудит] Тот же защитный паттерн присутствия ushell.Container, что
-    // уже применяет MockServerBootstrap.js#_isFlp — вне FLP (локальный
-    // standalone index.html, как этот дев-сервер) window.sap.ushell попросту
-    // нет, и вся эта функциональность корректно ничего не делает.
-    _getShellUIService () {
-      try {
-        if (!(window.sap && window.sap.ushell && window.sap.ushell.Container)) { return null; }
-        return window.sap.ushell.Container.getServiceAsync("ShellUIService");
-      } catch (e) {
-        return null;
-      }
-    },
-
+    // [Fix WZ-02/UX-04/PF-04] Раньше — getServiceAsync("ShellUIService"):
+    // такого Container-сервиса нет (и у ShellUIService нет setDirtyFlag), флаг
+    // не ставился никогда, а на каждое нажатие клавиши — reject + warning.
+    // Штатный API — синхронный sap.ushell.Container.setDirtyFlag; значение
+    // кэшируется, в шелл уходят только переходы false<->true. Вне FLP — no-op.
     _setShellDirty (bDirty) {
-      const oServicePromise = this._getShellUIService();
-      if (!oServicePromise) { return; }
-      oServicePromise.then((oService) => {
-        if (oService && oService.setDirtyFlag) { oService.setDirtyFlag(bDirty); }
-      }).catch((e) => {
-        Log.warning("ShellUIService dirty-flag update failed", e && e.message, LOG_COMPONENT);
-      });
+      if (this._bShellDirty === bDirty) { return; }
+      this._bShellDirty = bDirty;
+      const oContainer = this._getUshellContainer();
+      if (oContainer && typeof oContainer.setDirtyFlag === "function") {
+        oContainer.setDirtyFlag(bDirty);
+      }
     },
 
     // [Fix, живой тест] Оборачивает setProperty трёх моделей формы напрямую,
@@ -259,6 +286,9 @@ sap.ui.define([
     // JSONModel.prototype), поэтому не затрагивает dictionaryModel/
     // locationModel и другие модели вне этих трёх.
     _initDirtyTracking () {
+      // [Fix FN-12/FN-13] Не ставить обёртки повторно (retry загрузки) и
+      // после onExit (там они уже сняты _stopDirtyTracking).
+      if (this._aDirtyTrackedModels || this._bDestroyed) { return; }
       const oView = this.getView();
       this._aDirtyTrackedModels = ["formModel", "checksModel", "barriersModel"]
         .map((sName) => oView.getModel(sName));
@@ -313,9 +343,11 @@ sap.ui.define([
         oView.getModel(), oView.getModel("dictionaryModel"),
         oView.getModel("locationModel"), sCheckDate
       ).then(() => {
+        if (this._bDestroyed) { return; }
         oBusy.destroy();
         this._oLoadingBusy = null;
-        MessageToast.show(rb.getText("msgDictLoaded"));
+        // [Fix LIVE-03] Тост "Справочники загружены…" при каждом старте убран —
+        // технический шум для пользователя; сообщается только ошибка.
         this._autoDetectTimezone();
         // [Fix РЕАЛЬНЫЙ БАГ, аудит] Вызов _updateBarriersAllowed() здесь
         // раньше был нужен, чтобы пересчитать и ЗАПИСАТЬ formModel>/
@@ -333,9 +365,28 @@ sap.ui.define([
         // что-то тронул.
         this._initDirtyTracking();
       }).catch((oErr) => {
+        if (this._bDestroyed) { return; }
         oBusy.destroy();
         this._oLoadingBusy = null;
-        MessageBox.error(rb.getText("msgMetadataFailed", [oErr && oErr.message ? oErr.message : oErr]));
+        Log.error("Dictionary load failed", oErr && oErr.message, LOG_COMPONENT);
+        this._showDictionaryLoadError(oErr);
+      });
+    },
+
+    // [Fix FN-13/UX-13] Раньше — техническое "Метаданные не загрузились: …"
+    // без выхода: пустые справочники до перезагрузки плитки. Теперь понятный
+    // текст + "Повторить" (перезапуск загрузки), тех. детали — под ссылкой.
+    // emphasizedAction в 1.71 нет — фокус на "Повторить" через initialFocus.
+    _showDictionaryLoadError (oErr) {
+      const rb = this.getResourceBundle();
+      const sRetry = rb.getText("btnRetry");
+      MessageBox.error(rb.getText("msgDictLoadFailed"), {
+        details: oErr && oErr.message ? oErr.message : String(oErr || ""),
+        actions: [sRetry, MessageBox.Action.CLOSE],
+        initialFocus: sRetry,
+        onClose: (sAction) => {
+          if (sAction === sRetry && !this._bDestroyed) { this._loadDictionaries(); }
+        }
       });
     },
 

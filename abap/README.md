@@ -73,6 +73,25 @@ Gateway-сервис через Referenced Data Source или "чистый" `@O
 `redux/abap/cds/*` (плюс одна новая — `EffectiveDate`, добавлена этой
 правкой).
 
+## Контракт поиска сотрудников (`Persons`, custom query option `search`)
+
+Клиент (`facade/PersonSearchFacade.js`) больше не выкачивает первые N
+сотрудников по алфавиту: введённый текст уходит штатной Gateway custom query
+option `search`, вместе с `$filter=ActiveFrom le :checkDate`, `$select` и
+`$top=100`, например
+`GET Persons?search=Иванов&$filter=ActiveFrom le datetime'…'&$select=Pernr,Fio,ActiveTo&$top=100`.
+Требования к сервису:
+
+- `Persons` — Referenced Data Source на `ZI_Person` с `@Search.searchable: true`,
+  `@Search.defaultSearchElement` (минимум на `Fio`, желательно и на `Pernr`)
+  и `@Search.fuzzinessThreshold`. SADL сам обрабатывает `search`; в
+  `$metadata` набор получает `sap:searchable="true"`.
+- `$top` клиента — потолок ~100 строк; если ответ упёрся в потолок, клиент
+  просто просит уточнить запрос (перебора страниц нет).
+- Ответ сервера клиент всегда дофильтровывает сам (регистр, `ё`/`е`, все
+  слова запроса в любом порядке) и сортирует по релевантности; fuzzy-лишние
+  строки отсекаются, поэтому `$orderby` не нужен.
+
 ## Решено: CheckItems/Barriers — только через deep-entity, флага на них нет
 
 Было открытым вопросом ("нужны ли CheckItems/Barriers как read/update entity

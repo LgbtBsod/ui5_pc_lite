@@ -15,7 +15,6 @@ sap.ui.define([
   // Deep Entity payload, сам сабмит и сброс формы после успеха. Чистая
   // реорганизация, без изменения поведения.
   const LOG_COMPONENT = "sap.pc_lite.lite.controller.mixin.Submit";
-  const STEP_PAGE_IDS = WizardSteps.STEP_PAGE_IDS;
 
   return {
 
@@ -74,7 +73,9 @@ sap.ui.define([
     // сбой сборки payload завершается тем же путём, что и сбой самого
     // запроса — пользовательским сообщением и разблокированной кнопкой.
     onSubmit () {
-      if (this._bSubmitInFlight) { return; }
+      // [Fix WZ-08] _bStepTransition: второй клик двойного клика по "Далее"
+      // попадал в "Отправить" (та же позиция в footer) до показа сводки.
+      if (this._bSubmitInFlight || this._bStepTransition) { return; }
       if (!this._validateBeforeSubmit()) { return; }
 
       const oView = this.getView();
@@ -100,14 +101,28 @@ sap.ui.define([
       // как и все чтения — через DictionaryFacade/PersonSearchFacade.
       // Контроллер больше не обращается к oView.getModel().create(...)
       // напрямую (см. facade/SubmitFacade.js).
-      SubmitFacade.submit(oView.getModel(), oPayload).then(() => {
+      // [Fix FN-12] После onExit (ушли с плитки до ответа) — только лог, без
+      // диалогов поверх следующего приложения и без сброса мёртвого View.
+      // [Fix] then(ok, fail), а не then().catch(): сбой уборки после УСПЕШНОГО
+      // create больше не показывается как "Ошибка отправки" (риск повторной отправки).
+      SubmitFacade.submit(oView.getModel(), oPayload).then((oCreated) => {
+        const sDocId = oCreated && oCreated.DocId;
+        if (this._bDestroyed) {
+          Log.info(`Deep Entity created after view exit, DocId=${sDocId || "?"}`, null, LOG_COMPONENT);
+          return;
+        }
         this._setSubmitBusy(false);
-        MessageBox.success(rb.getText("msgSubmitSuccess"));
+        // [Fix UX-10] Номер созданного документа — единственная "квитанция"
+        // (форма сразу сбрасывается); нет DocId в ответе (MockServer) — общий текст.
+        MessageBox.success(sDocId ? rb.getText("msgSubmitSuccessDoc", [sDocId]) : rb.getText("msgSubmitSuccess"));
         this._resetForm();
-      }).catch((oErr) => {
+      }, (oErr) => {
+        Log.error("Deep Entity submit failed", oErr, LOG_COMPONENT);
+        if (this._bDestroyed) { return; }
         this._setSubmitBusy(false);
         MessageBox.error(rb.getText("msgSubmitError", [ErrorHandler.getMessage(oErr, rb)]));
-        Log.error("Deep Entity submit failed", oErr, LOG_COMPONENT);
+      }).catch((oErr) => {
+        Log.error("Post-submit handling failed", oErr && oErr.message, LOG_COMPONENT);
       });
     },
 
@@ -128,6 +143,7 @@ sap.ui.define([
     // меняются при сбросе формы). dataFor() отдаёт только сырые defaults для
     // фактически сбрасываемых моделей, без лишней аллокации.
     _resetForm () {
+      if (this._bDestroyed) { return; }
       const oView = this.getView();
       ["formModel", "checksModel", "barriersModel", "inspectedPersonModel", "inspectorPersonModel", "wizardModel"]
         .forEach((sName) => oView.getModel(sName).setData(ModelsInit.dataFor(sName)));
@@ -153,9 +169,13 @@ sap.ui.define([
       // после неё упала на уже мёртвом View.
       const oProgressNav = this.byId("progressNav");
       const oStepNav = this.byId("stepNav");
-      const oFirstPage = this.byId(STEP_PAGE_IDS[0]);
       if (oProgressNav) { oProgressNav.discardProgress(1); }
-      if (oStepNav && oFirstPage) { oStepNav.backToPage(oFirstPage.getId(), "show"); }
+      // [Fix WZ-09/FN-01] backToTop() вместо backToPage(first, "show"): строка
+      // "show" уходила в backData, а не в анимацию. backToTop очищает всю
+      // историю NavContainer, и её зеркало _aNavStack сбрасывается вместе с ней.
+      if (oStepNav) { oStepNav.backToTop(); }
+      this._aNavStack = [WizardSteps.WHEN];
+      this._updateShellBackNavigation(WizardSteps.WHEN);
 
       // [Fix РЕАЛЬНЫЙ БАГ, аудит] _updateBarriersAllowed() здесь раньше
       // пересчитывал и перезаписывал formModel>/BarriersAllowed после

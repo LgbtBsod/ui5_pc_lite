@@ -2,85 +2,54 @@ sap.ui.define([
   "sap/ui/model/Filter",
   "sap/ui/model/FilterOperator",
   "sap/base/Log",
-  "sap/pc_lite/lite/model/BackendConfig"
-], (Filter, FilterOperator, Log, BackendConfig) => {
+  "sap/pc_lite/lite/model/BackendConfig",
+  "sap/pc_lite/lite/util/SearchText"
+], (Filter, FilterOperator, Log, BackendConfig, SearchText) => {
   "use strict";
 
   const DEBOUNCE_MS = 300;
   const MIN_QUERY_LEN = 3;
   const LOG_COMPONENT = "sap.pc_lite.lite.facade.PersonSearchFacade";
-  // [Fix РЕАЛЬНЫЙ БАГ, аудит] $top всей популяции Persons, читаемой ОДНИМ
-  // запросом на каждый ввод — раньше "200" литералом без объяснения. На
-  // моке (несколько строк) не заметно; на реальном штате предприятия
-  // (общий бэкенд с redux, полноценный HR-справочник) фамилия, сортирующаяся
-  // алфавитно ПОСЛЕ этой границы, никогда не попадёт в ответ сервера — и
-  // клиентский substring-фильтр ниже (_read) физически не увидит её вообще,
-  // не "не найдёт по строке", а не получит на вход. Полноценное решение
-  // (реальный full-text поиск на сервере вместо client-side substring)
-  // требует серверной возможности, которой у MockServer 1.71 нет (см.
-  // подробный комментарий класса ниже про tolower()/Contains) — здесь лишь
-  // поднят потолок с явным именем и предупреждением, а не тихо оставлен
-  // магическим числом. Если реальный активный штат превышает это значение —
-  // нужен либо настоящий серверный поиск, либо постраничная догрузка по
-  // мере ввода (см. suggested_fix в отчёте аудита), не только больший $top.
-  const MAX_CANDIDATE_ROWS = 2000;
+  // [Fix FN-07/PF-01/SF-07, аудит] Раньше на КАЖДУЮ паузу в вводе читались
+  // первые 2000 сотрудников по алфавиту и фильтровались на клиенте — всё, что
+  // сортируется после 2000-й строки, было ненаходимо в принципе. Теперь текст
+  // уходит на сервер штатной custom query option Gateway "search" (SADL,
+  // @Search.* на ZI_Person — см. abap/README.md), $top — лишь потолок ответа.
+  const SERVER_TOP = 100;
+  const MAX_SUGGESTIONS = 20;
+  const CACHE_MAX_ENTRIES = 50;
 
   /**
-   * Debounced fuzzy person search against /Persons.
+   * Debounced person search against /Persons.
    *
    * [Fix Code-to-Data / HANA push-down] ActiveFrom (LE :date) фильтруется
-   * ИСКЛЮЧИТЕЛЬНО на сервере — обычное сравнение с реальным значением,
-   * без риска null-семантики, безопасный push-down.
+   * на сервере — обычное сравнение с реальным значением, без null-семантики.
    *
-   * [Архитектурное решение] ActiveTo (nullable — "бессрочно активен")
-   * НЕ фильтруется через `eq null` на сервере. Эмпирически проверено:
-   * sap.ui.core.util.MockServer 1.71 возвращает [] на "ActiveTo eq null"
-   * даже когда в данных реально лежит null — его $filter-парсер не умеет
-   * сравнивать Edm.DateTime с null-литералом. Тот же класс дефекта
-   * систематически встречается и в реальных SAP Gateway/CDS-сервисах:
-   * наивная трансляция $filter в SQL WHERE через generated DPC_EXT нередко
-   * эмиттит `= NULL` вместо `IS NULL` (ANSI SQL: `= NULL` никогда не
-   * матчит), особенно для полей без явного `Nullable="false"` в metadata.
-   * Полагаться на `eq null` для критичного для отображения условия (кого
-   * показывать в поиске) — ненадёжный контракт вне зависимости от
-   * конкретного бэкенда. ActiveTo поэтому читается через $select и
-   * проверяется на границе, в _isActiveOn() — это НЕ повтор всего правила
-   * (ActiveFrom остаётся авторитетно server-side), а точечная защита от
-   * одной конкретной ненадёжной null-семантики.
+   * [Архитектурное решение] ActiveTo (nullable — "бессрочно активен") НЕ
+   * фильтруется через `eq null` на сервере: MockServer 1.71 возвращает [] на
+   * "ActiveTo eq null", и тот же класс дефекта (`= NULL` вместо `IS NULL`)
+   * встречается в generated DPC. ActiveTo проверяется на границе, в _isActiveOn().
    *
-   * [Fix архитектурная консистентность] static-класс — как DictionaryFacade/
-   * DeepEntityFacade, вместо синглтон-инстанса; вызовы у потребителей
-   * (Main.controller.js, Component.js) не меняются — они уже обращались к
-   * модулю как к статическому объекту (`PersonSearchFacade.search(...)`).
+   * [Fix SF-02] Ответ сервера (search может быть fuzzy) ВСЕГДА проходит
+   * второй, клиентский проход SearchText.matches (регистр, ё/е, порядок слов)
+   * и ранжирование — финальный список предсказуем на любом бэкенде.
    */
   class PersonSearchFacade {
     /**
-     * [Fix, аудит] Promise-based — как DictionaryFacade.load()/SubmitFacade.submit(),
-     * а не callback: раньше был единственным callback-based фасадом в проекте
-     * (и единственным местом в контроллере, вызванным не через .then()), хотя
-     * ничто в дебаунсе этого не требует — обогнанный более новым запросом вызов
-     * просто оставляет свой Promise вечно (и безвредно) неразрешённым, ровно
-     * как раньше оставлял свой fnCallback невызванным.
+     * [Fix, аудит] Promise-based. Контракт результата:
+     *  - массив {Pernr, Fullname} (возможно пустой) — актуальный ответ;
+     *  - null — ответ устарел (по этой роли уже запущен более новый поиск);
+     *  - reject — ошибка чтения (только для ещё актуального запроса).
+     * Обогнанный debounce-вызов оставляет свой Promise неразрешённым (безвредно).
      * @param {sap.ui.model.odata.v2.ODataModel} oModel
      * @param {string} sQuery
      * @param {string} [sCheckDate] ISO date (yyyy-MM-dd); if set, only persons active on this date are returned
      * @param {string} [sRole] debounce bucket key (e.g. "inspected"/"inspector")
-     * @returns {Promise<{Pernr:string, Fullname:string}[]>}
+     * @returns {Promise<{Pernr:string, Fullname:string}[]|null>}
      */
-    // [Fix РЕАЛЬНЫЙ БАГ, аудит] _oLatestSeq[sKey] — счётчик "какой запуск
-    // поиска по этой роли самый свежий". Раньше debounce (clearTimeout)
-    // защищал только от ДВОЙНОГО запуска, ПОКА предыдущий таймер ещё не
-    // истёк — но ничего не мешало ДВУМ уже реально ушедшим на сервер
-    // read()-ам (для двух разных, всё более уточнённых, запросов) вернуться
-    // из сети в ОБРАТНОМ порядке. На локальном MockServer без задержки сети
-    // это не воспроизвести — но при реальном бэкенде (тот же общий бэк, что
-    // и у redux) более старый (по вводу) запрос вполне может ответить позже
-    // нового и затереть корректный список подсказкой по неправильному
-    // человеку. Каждый search() увеличивает счётчик и запоминает СВОЙ номер
-    // (iSeq); ответ применяется, только если он всё ещё самый свежий на
-    // момент прихода (см. _read ниже) — тот же принцип "штамп + проверка
-    // перед записью", что уже использует _bSubmitInFlight в Submit.js для
-    // другого класса гонки (двойной сабмит).
+    // [Fix РЕАЛЬНЫЙ БАГ, аудит] _oLatestSeq[sKey] — "какой запуск поиска по
+    // этой роли самый свежий": два ушедших в сеть read() могут вернуться в
+    // обратном порядке, применяется только ответ с актуальным iSeq.
     static search(oModel, sQuery, sCheckDate, sRole) {
       if (!oModel) {
         Log.error("PersonSearchFacade: ODataModel not provided", null, LOG_COMPONENT);
@@ -89,72 +58,144 @@ sap.ui.define([
 
       const sKey = sRole || "default";
       clearTimeout(PersonSearchFacade._oTimers[sKey]);
+      // Любой новый ввод (в т.ч. слишком короткий) делает ещё летящий ответ
+      // этой роли устаревшим.
+      const iSeq = (PersonSearchFacade._oLatestSeq[sKey] = (PersonSearchFacade._oLatestSeq[sKey] || 0) + 1);
 
-      if (!sQuery || sQuery.length < MIN_QUERY_LEN) {
-        // Пустой/слишком короткий ввод отменяет и любой ещё летящий по сети
-        // запрос этой роли — инкремент счётчика делает его ответ, когда бы
-        // он ни пришёл, автоматически устаревшим (см. _read).
-        PersonSearchFacade._oLatestSeq[sKey] = (PersonSearchFacade._oLatestSeq[sKey] || 0) + 1;
+      if (!PersonSearchFacade.isQueryLongEnough(sQuery)) {
         return Promise.resolve([]);
       }
+      const sNorm = SearchText.normalize(sQuery);
 
-      const iSeq = (PersonSearchFacade._oLatestSeq[sKey] = (PersonSearchFacade._oLatestSeq[sKey] || 0) + 1);
-      return new Promise((resolve) => {
-        PersonSearchFacade._oTimers[sKey] = setTimeout(
-          () => PersonSearchFacade._read(oModel, sQuery, sCheckDate, sKey, iSeq, resolve), DEBOUNCE_MS);
+      // Кэш-хит (точный или надмножество от более короткого запроса) — без
+      // сети и без debounce: подсказки при допечатывании появляются сразу.
+      const oCached = PersonSearchFacade._findCached(sCheckDate || "", sNorm);
+      if (oCached) {
+        return Promise.resolve(PersonSearchFacade._finish(oCached.rows, sNorm));
+      }
+
+      return new Promise((resolve, reject) => {
+        PersonSearchFacade._oTimers[sKey] = setTimeout(() => {
+          PersonSearchFacade._fetch(oModel, sQuery, sNorm, sCheckDate).then((oResult) => {
+            resolve(iSeq === PersonSearchFacade._oLatestSeq[sKey] ? PersonSearchFacade._finish(oResult.rows, sNorm) : null);
+          }, (oError) => {
+            if (iSeq !== PersonSearchFacade._oLatestSeq[sKey]) { resolve(null); return; }
+            reject(oError);
+          });
+        }, DEBOUNCE_MS);
       });
     }
 
-    // [Fix, обнаружено на живом прогоне] Fio Contains sQuery раньше уходил
-    // как server-side $filter — sap.ui.core.util.MockServer сравнивает
-    // подстроку РЕГИСТРОЗАВИСИМО ("иван" не находил "Слесарь Сергей Иванов",
-    // "Иванов" — находил). Filter({caseSensitive:false}) не спасает: ODataModel
-    // заворачивает сравнение в tolower(...), а MockServer 1.71 такую функцию
-    // в $filter не понимает вообще (сам HTTP-запрос падает). Реальный
-    // SAP Gateway/HANA обычно регистронезависим по коллации CHAR-полей, но
-    // полагаться на это (или на конкретное поведение MockServer) для
-    // критичного для UX условия "нашёлся человек или нет" — тот же ненадёжный
-    // контракт, что уже разобран для ActiveTo выше: текстовое совпадение
-    // проверяется здесь, на границе, а не доверяется серверному $filter.
-    static _read(oModel, sQuery, sCheckDate, sKey, iSeq, resolve) {
-      const oActiveFilter = PersonSearchFacade._buildActiveOnFilter(sCheckDate);
+    /** @returns {boolean} whether the normalized query is long enough to search */
+    static isQueryLongEnough(sQuery) {
+      return SearchText.normalize(sQuery).length >= MIN_QUERY_LEN;
+    }
 
-      oModel.read(`/${BackendConfig.ENTITY_SETS.PERSONS}`, {
-        filters: oActiveFilter ? [oActiveFilter] : [],
-        urlParameters: {
-          "$top": String(MAX_CANDIDATE_ROWS),
-          "$select": "Pernr,Fio,ActiveFrom,ActiveTo",
-          "$orderby": "Fio asc"
-        },
-        success: (oData) => {
-          // [Fix РЕАЛЬНЫЙ БАГ, аудит] Если за время сетевого запроса пользователь
-          // успел набрать ещё и запустился более новый search() для этой же
-          // роли — iSeq уже не совпадает с текущим _oLatestSeq[sKey]. Этот
-          // ответ отбрасывается целиком (resolve(null), не [] — см.
-          // PersonSearch.js#onPersonLiveChange, где null отличают от
-          // "реально пустой результат"), а не применяется поверх уже более
-          // актуального списка подсказок.
-          if (iSeq !== PersonSearchFacade._oLatestSeq[sKey]) { resolve(null); return; }
+    // Один запрос на (дата, нормализованный запрос): одновременные/повторные
+    // вызовы получают тот же Promise; отклонённый удаляется из кэша, чтобы
+    // следующий ввод повторил попытку.
+    static _fetch(oModel, sQuery, sNorm, sCheckDate) {
+      const sDateKey = sCheckDate || "";
+      const sCacheKey = `${sDateKey}|${sNorm}`;
+      const oCache = PersonSearchFacade._oCache;
+      const oExisting = oCache.get(sCacheKey);
+      if (oExisting) {
+        return oExisting.promise;
+      }
 
-          const sQueryLower = sQuery.toLowerCase();
-          const aRows = ((oData && oData.results) || [])
-            .filter((r) => (r.Fio || "").toLowerCase().indexOf(sQueryLower) > -1)
-            .filter((r) => PersonSearchFacade._isActiveOn(r, sCheckDate));
-          // [MIGRATION_MAPPING.md, OPEN-3 — решено] Persons (redux) не несёт
-          // OrgAssignment/Position, которые были в старой I_PersonSearch —
-          // поля убраны из формы целиком, не запрашиваются здесь.
-          //
-          // [Fix регрессии] BaseInfo.fragment.xml/Main.controller.js ожидают
-          // Fullname — Persons (redux) отдаёт Fio; маппинг делается здесь, на
-          // границе, а не в двух потребителях.
-          resolve(aRows.slice(0, 20).map((r) => ({ Pernr: r.Pernr, Fullname: r.Fio })));
-        },
-        error: (oError) => {
-          if (iSeq !== PersonSearchFacade._oLatestSeq[sKey]) { resolve(null); return; }
-          Log.error("PersonSearch read failed", oError.message, LOG_COMPONENT);
-          resolve([]);
+      const oEntry = { date: sDateKey, query: sNorm, result: null, promise: null };
+      oEntry.promise = new Promise((resolve, reject) => {
+        const oActiveFilter = PersonSearchFacade._buildActiveOnFilter(sCheckDate);
+        oModel.read(`/${BackendConfig.ENTITY_SETS.PERSONS}`, {
+          filters: oActiveFilter ? [oActiveFilter] : [],
+          urlParameters: {
+            // Исходный текст (без ё->е) — регистр/fuzzy решает сам серверный поиск.
+            "search": String(sQuery).replace(/\s+/g, " ").trim(),
+            "$top": String(SERVER_TOP),
+            "$select": "Pernr,Fio,ActiveTo"
+          },
+          success: (oData) => {
+            const aRaw = (oData && oData.results) || [];
+            const oResult = {
+              rows: aRaw.filter((r) => PersonSearchFacade._isActiveOn(r, sCheckDate))
+                .map((r) => ({ Pernr: r.Pernr, Fio: r.Fio || "" })),
+              truncated: aRaw.length >= SERVER_TOP
+            };
+            if (oResult.truncated) {
+              Log.warning(`Persons search "${sNorm}" hit $top=${SERVER_TOP}; results may be incomplete`, null, LOG_COMPONENT);
+            }
+            oEntry.result = oResult;
+            resolve(oResult);
+          },
+          error: (oError) => {
+            if (oCache.get(sCacheKey) === oEntry) { oCache.delete(sCacheKey); }
+            Log.error("PersonSearch read failed", oError && oError.message, LOG_COMPONENT);
+            reject(oError || new Error("Persons read failed"));
+          }
+        });
+      });
+
+      oCache.set(sCacheKey, oEntry);
+      if (oCache.size > CACHE_MAX_ENTRIES) {
+        oCache.delete(oCache.keys().next().value);
+      }
+      return oEntry.promise;
+    }
+
+    // Точное совпадение ключа или загруженный НЕусечённый (< $top строк) ответ
+    // на более общий запрос той же даты: всё, что матчит новый запрос, матчит
+    // и старый (SearchText.isRefinementOf), значит уже есть в его ответе.
+    static _findCached(sDateKey, sNorm) {
+      const oCache = PersonSearchFacade._oCache;
+      const oExact = oCache.get(`${sDateKey}|${sNorm}`);
+      if (oExact && oExact.result) {
+        return oExact.result;
+      }
+      let oFound = null;
+      oCache.forEach((oEntry) => {
+        if (!oFound && oEntry.result && !oEntry.result.truncated && oEntry.date === sDateKey &&
+            SearchText.isRefinementOf(sNorm, oEntry.query)) {
+          oFound = oEntry.result;
         }
       });
+      return oFound;
+    }
+
+    // Второй проход: нормализованное совпадение всех слов запроса, затем
+    // ранжирование (точное -> начало -> начала слов -> подстрока) и потолок.
+    // Fio -> Fullname маппится здесь, на границе (BaseInfo/PersonSearch ждут Fullname).
+    static _finish(aRows, sNorm) {
+      return (aRows || [])
+        .filter((r) => SearchText.matches(r.Fio, sNorm))
+        .map((r) => ({ row: r, rank: SearchText.rank(r.Fio, sNorm) }))
+        .sort((a, b) => (a.rank - b.rank) || a.row.Fio.localeCompare(b.row.Fio, "ru"))
+        .slice(0, MAX_SUGGESTIONS)
+        .map((o) => ({ Pernr: o.row.Pernr, Fullname: o.row.Fio }));
+    }
+
+    /**
+     * [Fix FN-11/SF-04] Перепроверка уже выбранного сотрудника после смены даты проверки.
+     * @returns {Promise<boolean|null>} активен ли на дату; null — проверить не удалось
+     */
+    static isPersonActiveOn(oModel, sPernr, sCheckDate) {
+      if (!oModel || !sPernr || !sCheckDate) {
+        return Promise.resolve(true);
+      }
+      return oModel.metadataLoaded().then(() => new Promise((resolve) => {
+        oModel.read(oModel.createKey(`/${BackendConfig.ENTITY_SETS.PERSONS}`, { Pernr: sPernr }), {
+          urlParameters: { "$select": "Pernr,ActiveFrom,ActiveTo" },
+          success: (oRow) => {
+            const oDate = new Date(sCheckDate);
+            const bFromOk = !oRow || !oRow.ActiveFrom || isNaN(oDate.getTime()) || new Date(oRow.ActiveFrom) <= oDate;
+            resolve(!!oRow && bFromOk && PersonSearchFacade._isActiveOn(oRow, sCheckDate));
+          },
+          error: (oError) => {
+            if (oError && String(oError.statusCode) === "404") { resolve(false); return; }
+            Log.warning("Person re-check failed", oError && oError.message, LOG_COMPONENT);
+            resolve(null);
+          }
+        });
+      }));
     }
 
     // ActiveFrom le :date — единственная часть диапазона активности, безопасно
@@ -172,9 +213,7 @@ sap.ui.define([
     }
 
     // [Fix] Точечная проверка верхней границы диапазона активности — ActiveTo
-    // null означает "бессрочно активен". Единственное место, разбирающее это
-    // условие; ActiveFrom сюда не дублируется — та часть уже авторитетно
-    // отфильтрована сервером через _buildActiveOnFilter.
+    // null означает "бессрочно активен".
     static _isActiveOn(oRow, sCheckDate) {
       if (!sCheckDate) {
         return true;
@@ -191,11 +230,15 @@ sap.ui.define([
       Object.keys(PersonSearchFacade._oTimers).forEach((sKey) => clearTimeout(PersonSearchFacade._oTimers[sKey]));
       PersonSearchFacade._oTimers = {};
       PersonSearchFacade._oLatestSeq = {};
+      PersonSearchFacade._oCache = new Map();
     }
   }
 
+  PersonSearchFacade.MIN_QUERY_LEN = MIN_QUERY_LEN;
   PersonSearchFacade._oTimers = {};
   PersonSearchFacade._oLatestSeq = {};
+  // "<checkDate>|<normalized query>" -> {date, query, promise, result: {rows, truncated} | null}
+  PersonSearchFacade._oCache = new Map();
 
   return PersonSearchFacade;
 });

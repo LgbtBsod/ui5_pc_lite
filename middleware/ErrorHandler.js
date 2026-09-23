@@ -52,11 +52,48 @@ sap.ui.define([
      */
     static getMessage(oError, rb) {
       if (!oError) { return rb.getText("msgErrUnknown"); }
-      if (oError.statusCode === 403) { return rb.getText("msgErrForbidden"); }
-      if (oError.statusCode === 404) { return rb.getText("msgErrNotFound"); }
-      if (oError.statusCode === 400) { return rb.getText("msgErrBadRequest"); }
-      if (oError.statusCode >= 500) { return rb.getText("msgErrServer"); }
+      // [Fix FN-08/UX-10] Бизнес-текст бэкенда (например, из
+      // /iwbep/cx_mgw_busi_exception) — главное, что нужно пользователю,
+      // чтобы понять, что исправить; раньше responseText не читался вовсе.
+      const sBackendText = ErrorHandler._extractBackendMessage(oError.responseText);
+      if (sBackendText) { return sBackendText; }
+      // [Fix FN-08] В $batch (useBatch: true) statusCode части changeset'а —
+      // строка ("400"), строгие === 400/403/404 не срабатывали.
+      const iStatus = Number(oError.statusCode);
+      if (iStatus === 403) { return rb.getText("msgErrForbidden"); }
+      if (iStatus === 404) { return rb.getText("msgErrNotFound"); }
+      if (iStatus === 400) { return rb.getText("msgErrBadRequest"); }
+      if (iStatus >= 500) { return rb.getText("msgErrServer"); }
       return oError.message || rb.getText("msgErrGeneric");
+    }
+
+    /**
+     * Extracts the Gateway error text from an OData V2 error body: JSON
+     * error.message.value plus distinct innererror.errordetails[].message, or
+     * the first message element of an XML error body. Never throws.
+     * @param {string} sResponseText raw response body
+     * @returns {string} the message text, or "" when none can be extracted
+     */
+    static _extractBackendMessage(sResponseText) {
+      if (typeof sResponseText !== "string" || !sResponseText.trim()) { return ""; }
+      try {
+        if (sResponseText.trim().charAt(0) === "<") {
+          const oDoc = new DOMParser().parseFromString(sResponseText, "application/xml");
+          const oMsg = oDoc.getElementsByTagNameNS("*", "message")[0];
+          return oMsg ? oMsg.textContent.trim() : "";
+        }
+        const oErr = (JSON.parse(sResponseText) || {}).error || {};
+        const vMain = oErr.message;
+        const aTexts = [typeof vMain === "string" ? vMain : (vMain && vMain.value)];
+        const aDetails = (oErr.innererror && oErr.innererror.errordetails) || [];
+        (Array.isArray(aDetails) ? aDetails : []).forEach((oDetail) => aTexts.push(oDetail && oDetail.message));
+        return aTexts
+          .map((s) => (typeof s === "string" ? s.trim() : ""))
+          .filter((s, i, a) => s && a.indexOf(s) === i)
+          .join("\n");
+      } catch (e) {
+        return "";
+      }
     }
   }
 

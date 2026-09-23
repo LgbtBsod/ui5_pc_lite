@@ -63,9 +63,12 @@ sap.ui.define([
       const sTitle = this.getResourceBundle().getText(oCfg.titleKey);
 
       const oVhState = DictionaryFacade.buildVhState(oCfg, sTargetType, oDictModel, sPkLevel, iRowIndex, sTitle);
+      oVhState.usedCodes = this._collectUsedCodes(oCfg, iRowIndex);
       oView.getModel("vhModel").setData(oVhState);
 
       this._getDialog("dictVhDialog", "sap.pc_lite.lite.fragment.DictValueHelp").then((oDlg) => {
+        // [Fix SF-08] Текст пустого списка — от прошлого поиска не остаётся.
+        oDlg.setNoDataText(this.getResourceBundle().getText("msgVhEmpty"));
         this._bindVhList(oCfg.dictType, sPkLevel);
         oDlg.open();
         // [SelectDialog] Поле поиска — приватная деталь контрола (нет
@@ -92,9 +95,16 @@ sap.ui.define([
     // самого SelectDialog (single-select list сам решает, что "тап = выбор"),
     // а не через press на отдельном StandardListItem, как раньше.
     _bindVhList (sDictType, sPkLevel) {
+      const sAlreadyAdded = this.getResourceBundle().getText("vhAlreadyAdded");
       const oTemplate = new StandardListItem({
         title: "{dictionaryModel>Text}",
-        description: "{dictionaryModel>Code}"
+        description: "{dictionaryModel>Code}",
+        // [Fix SF-10, аудит] Код уже есть в другой строке таблицы — помечаем,
+        // но не прячем (повтор может быть осознанным, бизнес не запрещал).
+        info: {
+          parts: [{ path: "dictionaryModel>Code" }, { path: "vhModel>/usedCodes" }],
+          formatter: (sCode, oUsed) => (oUsed && sCode && oUsed[sCode] ? sAlreadyAdded : "")
+        }
       }).addStyleClass("appVhItem");
 
       // [Fix, живой тест] bindItems() — авто-сгенерированный алиас
@@ -161,17 +171,32 @@ sap.ui.define([
       return iIndex;
     },
 
+    // {code: true} кодов, уже выбранных в ДРУГИХ строках целевой таблицы.
+    _collectUsedCodes (oCfg, iRowIndex) {
+      const aRows = this.getView().getModel(oCfg.model).getProperty("/items") || [];
+      const oUsed = {};
+      aRows.forEach((oRow, i) => {
+        if (i !== iRowIndex && oRow[oCfg.codeProp]) { oUsed[oRow[oCfg.codeProp]] = true; }
+      });
+      return oUsed;
+    },
+
     // [SelectDialog] liveChange даёт value (не newValue, как у голого
     // SearchField — другой контрол, другое имя параметра события).
+    // [Fix SF-02/SF-08] Запрос обрезается (одни пробелы = без поиска), поиск
+    // нормализован (DictionaryFacade/SearchText), пустой результат поиска —
+    // свой текст ("ничего не найдено", а не "нет значений для уровня КПР").
     onVhSearch (oEvent) {
-      const sQuery = oEvent.getParameter("value") || "";
+      const sQuery = (oEvent.getParameter("value") || "").trim();
       const oVhModel = this.getView().getModel("vhModel");
       const oDictModel = this.getView().getModel("dictionaryModel");
       const sDictType = oVhModel.getProperty("/dictType");
       const sPkLevel = this.getView().getModel("formModel").getProperty("/PkLevel");
 
       oVhModel.setProperty("/categoryCounts", DictionaryFacade.buildCategoryCounts(oDictModel, sDictType, sPkLevel, sQuery));
-      this.byId("dictVhDialog").getBinding("items").filter(DictionaryFacade.buildVhFilters(sPkLevel, sQuery));
+      const oDlg = this.byId("dictVhDialog");
+      oDlg.setNoDataText(this.getResourceBundle().getText(sQuery ? "msgVhNoMatch" : "msgVhEmpty"));
+      oDlg.getBinding("items").filter(DictionaryFacade.buildVhFilters(sPkLevel, sQuery));
     },
 
     // [SelectDialog] Раньше — press на самом StandardListItem, читал

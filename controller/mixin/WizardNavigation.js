@@ -16,6 +16,8 @@ sap.ui.define([
   // this.getView()/this.getResourceBundle() и обращения к методам других
   // миксинов (например RowsAndAutoFill) работают как раньше.
   const STEP_PAGE_IDS = WizardSteps.STEP_PAGE_IDS;
+  // Страховочный таймаут снятия флага перехода (анимация slide ~0.3-0.5 с).
+  const STEP_TRANSITION_TIMEOUT_MS = 1500;
 
   return {
 
@@ -42,7 +44,10 @@ sap.ui.define([
     _initStepFocusAnnouncements () {
       const oNavContainer = this.byId("stepNav");
       if (oNavContainer) {
-        oNavContainer.attachAfterNavigate((oEvent) => this._focusStepHeading(oEvent.getParameter("to")));
+        oNavContainer.attachAfterNavigate((oEvent) => {
+          this._endStepTransition();
+          this._focusStepHeading(oEvent.getParameter("to"));
+        });
       }
     },
 
@@ -58,58 +63,149 @@ sap.ui.define([
       const oDom = oHeading && oHeading.getDomRef();
       if (oDom) {
         oDom.setAttribute("tabindex", "-1");
-        oDom.focus();
+        // [Fix LIVE-01] preventScroll: иначе браузер прокручивал overflow:hidden
+        // страницу на 16px вбок, чтобы "показать" заголовок, и вернуть её было нечем.
+        oDom.focus({ preventScroll: true });
       }
     },
 
-    // [Fix, реентерабельность] nextStep()/previousStep(), вызванные ИЗ
-    // _goToStep ниже, сами синхронно стреляют stepChanged — без флага это
-    // событие возвращалось бы сюда же и запускало ВТОРОЙ, уже некорректный
-    // _goToStep поверх ещё не завершившегося первого (обнаружено на живом
-    // прогоне на скип-переходе с дистанцией 2: цепочка из наложившихся
-    // вызовов уводила itemStep дальше, чем нужно). Флаг игнорирует именно
-    // эхо от наших же вызовов — реальный тап пользователя по номеру шага в
-    // навигаторе (единственный случай, когда флаг снят) по-прежнему обрабатывается.
+    // [Fix, реентерабельность] Флаг _bSyncingProgressNav игнорирует эхо от
+    // наших же nextStep()/previousStep() (см. _syncProgressNav) — обрабатывается
+    // только реальный тап пользователя по номеру шага в навигаторе.
+    // [Fix FN-01/WZ-04/UX-01] Тап идёт через те же правила, что и кнопки:
+    // скип "Барьеров" и гейтинг isStepComplete для КАЖДОГО промежуточного шага
+    // при прыжке вперёд — остановка на первом незаполненном (его подсветка
+    // остаётся, т.к. isStepComplete снимает сообщения предыдущих вызовов).
     _onProgressNavStepChanged (oEvent) {
       if (this._bSyncingProgressNav) { return; }
-      const iNewStep = oEvent.getParameter("current");
-      const iOldStep = this.getView().getModel("wizardModel").getProperty("/currentStep");
-      if (iNewStep === iOldStep) { return; }
-      this._goToStep(iNewStep, iNewStep > iOldStep ? "forward" : "back", /* bSyncProgressNav */ false);
+      const oView = this.getView();
+      const iTapped = oEvent.getParameter("current");
+      const iCurrent = oView.getModel("wizardModel").getProperty("/currentStep");
+      // Во время анимации перехода тап игнорируется — навигатор (он уже сам
+      // переключился на тапнутый номер) возвращаем к реальному шагу.
+      if (this._bStepTransition || iTapped === iCurrent) {
+        this._syncProgressNav(iCurrent);
+        return;
+      }
+      const sDirection = iTapped > iCurrent ? "forward" : "back";
+      let iTarget = iTapped;
+      let bIncomplete = false;
+      if (sDirection === "forward") {
+        const bBarriersAllowed = BusinessRules.isBarriersAllowed(oView.getModel("formModel").getProperty("/PkLevel"));
+        for (let iStep = iCurrent; iStep < iTapped; iStep++) {
+          if (iStep === WizardSteps.BARRIERS && !bBarriersAllowed) { continue; }
+          if (!FormValidator.isStepComplete(oView.getModel("formModel"), iStep, oView.getModel("checksModel"),
+            oView.getModel("barriersModel"), this.getResourceBundle())) {
+            iTarget = iStep;
+            bIncomplete = true;
+            break;
+          }
+        }
+      }
+      if (bIncomplete) {
+        MessageToast.show(this.getResourceBundle().getText("msgStepIncomplete"));
+      } else {
+        iTarget = this._skipBarriersIfNeeded(iTarget, sDirection);
+      }
+      this._goToStep(iTarget, sDirection);
     },
 
-    // [Поэтапный ввод] Единственное место, синхронизирующее три вещи разом:
-    // wizardModel>/currentStep (гейтинг кнопок в footer, см. Main.view.xml),
-    // WizardProgressNavigator (полоса прогресса) и NavContainer (реально
-    // видимый экран). bSyncProgressNav=false — когда вызвано ИЗ события
-    // самого навигатора (см. выше): он уже в нужном состоянии, повторный
-    // nextStep()/previousStep() по нему был бы двойным шагом.
-    //
-    // [Fix, по просьбе — скип шага "Барьеры"] nextStep()/previousStep() у
-    // WizardProgressNavigator двигают ровно на один шаг за вызов — при
-    // скип-переходе (см. _skipBarriersIfNeeded) реальная дистанция может
-    // быть 2 (4->6 или 6->4), отсюда цикл по iDelta, а не одиночный вызов.
-    _goToStep (iNewStep, sDirection, bSyncProgressNav) {
-      const oView = this.getView();
-      const iOldStep = oView.getModel("wizardModel").getProperty("/currentStep");
-      oView.getModel("wizardModel").setProperty("/currentStep", iNewStep);
-
-      if (bSyncProgressNav !== false) {
-        const oProgressNav = this.byId("progressNav");
-        const iDelta = Math.abs(iNewStep - iOldStep) || 1;
-        this._bSyncingProgressNav = true;
-        for (let i = 0; i < iDelta; i++) {
-          if (sDirection === "forward") { oProgressNav.nextStep(); } else { oProgressNav.previousStep(); }
+    // [Fix FN-01] Навигатор двигается ровно до iStep от СВОЕГО текущего шага
+    // (getCurrentStep), а не на дельту от wizardModel — после тапа навигатор
+    // уже стоит на тапнутом номере, и дельта от модели дала бы пере-шаг.
+    // nextStep() также расширяет "пройденную" часть (activeStep) при скипе 4->6.
+    _syncProgressNav (iStep) {
+      const oProgressNav = this.byId("progressNav");
+      if (!oProgressNav) { return; }
+      this._bSyncingProgressNav = true;
+      try {
+        for (let iGuard = STEP_PAGE_IDS.length; iGuard > 0 && oProgressNav.getCurrentStep() !== iStep; iGuard--) {
+          if (oProgressNav.getCurrentStep() < iStep) { oProgressNav.nextStep(); } else { oProgressNav.previousStep(); }
         }
+      } finally {
         this._bSyncingProgressNav = false;
       }
+    },
 
+    // [Поэтапный ввод] Единственное место, синхронизирующее разом:
+    // wizardModel>/currentStep (гейтинг кнопок в footer, см. Main.view.xml),
+    // WizardProgressNavigator, NavContainer (реально видимый экран) и кнопку
+    // "Назад" шелла FLP. Работает для ЛЮБОГО прыжка (в т.ч. назад через
+    // несколько шагов — например, к первому незаполненному шагу после
+    // неудачного submit). sDirection необязателен — по умолчанию из номеров.
+    // [Fix FN-01/WZ-01] backToPage в 1.71 молча ничего не делает, если
+    // страницы нет в истории NavContainer (после скипа "Барьеров" или прыжка
+    // по навигатору) — модель и экран расходились. История дублируется в
+    // _aNavStack (номера шагов, верх = видимый шаг); страница не из истории
+    // вставляется под текущую (insertPreviousPage) и достигается через back().
+    _goToStep (iNewStep, sDirection) {
       const oNavContainer = this.byId("stepNav");
       const oPage = this.byId(STEP_PAGE_IDS[iNewStep - 1]);
-      if (sDirection === "forward") {
-        oNavContainer.to(oPage, "slide");
+      if (!oNavContainer || !oPage) { return; }
+      const aStack = this._getNavStack();
+      const iShownStep = aStack[aStack.length - 1];
+      const sDir = sDirection || (iNewStep > iShownStep ? "forward" : "back");
+
+      if (oNavContainer.getCurrentPage() !== oPage) {
+        this._startStepTransition(oNavContainer);
+        if (sDir === "forward") {
+          oNavContainer.to(oPage, "slide");
+          aStack.push(iNewStep);
+        } else if (aStack.lastIndexOf(iNewStep) > -1) {
+          // [Fix WZ-09] Второй аргумент backToPage — backData, не имя анимации
+          // (обратный переход всегда инвертирует прямой).
+          oNavContainer.backToPage(oPage.getId());
+          aStack.length = aStack.lastIndexOf(iNewStep) + 1;
+        } else {
+          oNavContainer.insertPreviousPage(oPage.getId(), "slide");
+          oNavContainer.back();
+          aStack[aStack.length - 1] = iNewStep;
+        }
       } else {
-        oNavContainer.backToPage(oPage.getId(), "slide");
+        aStack[aStack.length - 1] = iNewStep;
+      }
+
+      this.getView().getModel("wizardModel").setProperty("/currentStep", iNewStep);
+      this._syncProgressNav(iNewStep);
+      this._updateShellBackNavigation(iNewStep);
+    },
+
+    // Зеркало истории NavContainer (у него нет публичного геттера всего стека).
+    // Сбрасывается в Submit.js#_resetForm вместе с backToTop().
+    _getNavStack () {
+      if (!this._aNavStack) { this._aNavStack = [WizardSteps.WHEN]; }
+      return this._aNavStack;
+    },
+
+    // [Fix WZ-08] Защита от двойного тапа во время анимации: второй тап по
+    // "Далее" валидировал ещё невидимый шаг и ставил в очередь следующий
+    // переход, а на шаге перед "Отправкой" попадал в "Отправить" (кнопки
+    // меняются местами). Флаг снимается в afterNavigate; таймер — страховка,
+    // чтобы wizard не "завис", если afterNavigate по какой-то причине не придёт.
+    _startStepTransition (oNavContainer) {
+      if (!oNavContainer.getDomRef()) { return; } // не отрисован — анимации и afterNavigate не будет
+      this._bStepTransition = true;
+      clearTimeout(this._iStepTransitionTimer);
+      this._iStepTransitionTimer = setTimeout(() => this._endStepTransition(), STEP_TRANSITION_TIMEOUT_MS);
+    },
+
+    _endStepTransition () {
+      this._bStepTransition = false;
+      clearTimeout(this._iStepTransitionTimer);
+      this._iStepTransitionTimer = null;
+    },
+
+    // [Fix WZ-07] В FLP стрелка "Назад" шелла по умолчанию уходит из
+    // приложения с любого шага; со 2-го шага она ведёт на предыдущий шаг
+    // wizard'а, на 1-м — поведение шелла по умолчанию (setBackNavigation()
+    // без аргумента). Вне FLP сервиса нет — no-op (см. Main.controller.js#onInit).
+    _updateShellBackNavigation (iStep) {
+      if (!this._oShellUIService) { return; }
+      if (!this._fnShellBack) { this._fnShellBack = () => this.onWizardBack(); }
+      if (iStep > WizardSteps.WHEN) {
+        this._oShellUIService.setBackNavigation(this._fnShellBack);
+      } else {
+        this._oShellUIService.setBackNavigation();
       }
     },
 
@@ -149,6 +245,7 @@ sap.ui.define([
     // — тост ниже остаётся как быстрый общий сигнал "не всё готово", подсветка
     // полей даёт КОНКРЕТНО что именно.
     onWizardNext () {
+      if (this._bStepTransition) { return; }
       const oView = this.getView();
       const iStep = oView.getModel("wizardModel").getProperty("/currentStep");
       const oFormModel = oView.getModel("formModel");
@@ -166,7 +263,9 @@ sap.ui.define([
     // FormValidator: смысл кнопки именно в том, чтобы поправить уже введённое,
     // блокировать её тем же гейтингом, что и "Далее", было бы противоречием.
     onWizardBack () {
+      if (this._bStepTransition) { return; }
       const iStep = this.getView().getModel("wizardModel").getProperty("/currentStep");
+      if (iStep <= WizardSteps.WHEN) { return; }
       this._goToStep(this._skipBarriersIfNeeded(iStep - 1, "back"), "back");
     }
 

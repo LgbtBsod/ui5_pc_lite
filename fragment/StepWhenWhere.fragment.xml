@@ -22,13 +22,19 @@
              колонки на шаге "Отправка" (см. Main.view.xml), вместо независимого
              литерала "dd.MM.yyyy" в двух местах. -->
         <Label text="{i18n>lblCheckDate}" labelFor="checkDate" class="appLabel"/>
+        <!-- [Fix FN-03/FN-11/SF-04] change: неверный ввод -> Error + пустое значение
+             в модели (шаг не пройдёт валидацию); новая валидная дата ->
+             перечитать иерархию местоположений и перепроверить выбранных
+             сотрудников на эту дату (LocationPicker.js#onCheckDateChange). -->
         <DatePicker id="checkDate" value="{formModel>/CheckDate}"
                     valueFormat="{constraintsModel>/DateValueFormat}" displayFormat="{constraintsModel>/DisplayDateFormat}" width="100%"
+                    change="onCheckDateChange"
                     class="appInput"/>
 
         <Label text="{i18n>lblCheckTime}" labelFor="checkTime" class="appLabel"/>
         <TimePicker id="checkTime" value="{formModel>/CheckTime}"
                     valueFormat="{constraintsModel>/TimeValueFormat}" displayFormat="HH:mm:ss" width="100%"
+                    change="onCheckTimeChange"
                     class="appInput"/>
 
         <Label text="{i18n>lblTimeZone}" labelFor="timeZone" class="appLabel"/>
@@ -37,23 +43,15 @@
           <core:Item key="{dictionaryModel>Code}" text="{dictionaryModel>Text}" />
         </ComboBox>
 
-        <!-- [Fix РЕАЛЬНЫЙ БАГ, аудит] liveChange="onLocationTextLiveChange" —
-             тот же приём, что уже применён к ФИО (см. PersonSearch.js#
-             onPersonLiveChange): formModel>/LocationText физически можно
-             редактировать руками ПОСЛЕ выбора из диалога (это обычный
-             двусторонне-биндленный Input, а не valueHelpOnly), и до этого
-             фикса ничто не сбрасывало formModel>/LocationUUID при таком
-             редактировании — payload уходил бы с валидным UUID, но текстом,
-             больше ему не соответствующим. maxLength — constraintsModel
-             (EntityConfig.CONSTRAINTS), тот же SSOT-приём, что уже
-             используют Equipment/Comment, зеркалит LocationName
-             MaxLength="100" из metadata.xml. -->
+        <!-- [Fix UX-05, аудит] valueHelpOnly: текст ставится ТОЛЬКО выбором из
+             диалога (тап по полю открывает его), поэтому ручного рассинхрона
+             LocationText/LocationUUID больше нет — прежние liveChange-сброс и
+             maxLength стали мёртвыми и убраны. -->
         <Label text="{i18n>lblLocation}" labelFor="locationInput" class="appLabel"/>
         <VBox class="appLocationVBox">
           <Input id="locationInput"
                  value="{formModel>/LocationText}"
-                 liveChange="onLocationTextLiveChange"
-                 maxLength="{constraintsModel>/LocationNameMaxLength}"
+                 valueHelpOnly="true"
                  placeholder="{i18n>phLocationSelect}"
                  showValueHelp="true"
                  valueHelpRequest="onLocationValueHelp"
