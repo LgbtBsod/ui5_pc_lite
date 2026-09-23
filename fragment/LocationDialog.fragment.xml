@@ -64,8 +64,7 @@
                 <Button type="Transparent" icon="sap-icon://slim-arrow-right"
                         visible="{locationModel>HasChildren}"
                         press="onLocationRowNavigate"
-                        tooltip="{i18n>ttLocationDrillIn}"
-                        class="appLocationRowNav"/>
+                        tooltip="{i18n>ttLocationDrillIn}"/>
               </HBox>
               <!-- [Поиск по всей иерархии, по запросу] Путь до родителя —
                    только пока активен глобальный поиск (locationModel>/
@@ -82,7 +81,7 @@
     </content>
     <buttons>
       <Button text="{i18n>btnChoose}" type="Emphasized" press="onLocationChooseCurrentLevel"
-              enabled="{= !!${locationModel>/selectedNodeId} }" class="appBtnPrimary"/>
+              enabled="{= !!${locationModel>/selectedNodeId} }"/>
       <Button text="{i18n>btnCancel}" press="onCloseLocationDialog"/>
     </buttons>
   </Dialog>

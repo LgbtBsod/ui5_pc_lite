@@ -84,6 +84,7 @@ sap.ui.define([
 
   function addMessage (oProcessor, sPath, sText, aTriggers) {
     aActiveMessages.push({
+      path: sPath,
       msg: new Message({
         target: sPath,
         type: MessageType.Error,
@@ -194,6 +195,26 @@ sap.ui.define([
     const aIssues = collectNonConformityIssues(aRows, oCfg, rb);
     aIssues.forEach((oIssue) => addMessage(oModel, oIssue.path, oIssue.text, oIssue.triggers));
     return aIssues.length;
+  }
+
+  // [Fix RR-01] Строка с кодом обязана нести ЯВНО выбранный результат. Пустой
+  // Status уходит в payload как Result "", а на бэкенде пустое значение
+  // (CHAR(1) без 'X') читается как "Неудовлетворительно" — строка молча
+  // записалась бы неудовлетворительной.
+  // Target — отдельный путь-приёмник /items/N/ResultMsg (на него в ChecksTable/
+  // BarriersTable.fragment.xml привязано name у Select результата), а не сам
+  // /items/N/Status: Select/InputBase применяют сообщения от ЛЮБОЙ привязки
+  // свойства на совпавшем пути, а enabled полей несоответствия привязан к тому
+  // же Status — ошибка "Выберите результат" красила бы и эти выключенные поля.
+  // Снимается записью в Status (triggers).
+  function flagMissingResultIssues (oModel, aRows, oCfg, rb) {
+    let iCount = 0;
+    (aRows || []).forEach((r, i) => {
+      if (!r[oCfg.codeProp] || (r.Status || "") !== "") { return; }
+      addMessage(oModel, `/items/${i}/ResultMsg`, rb.getText("msgValResultMissing"), [`/items/${i}/Status`]);
+      iCount++;
+    });
+    return iCount;
   }
 
   class FormValidator {
@@ -319,7 +340,7 @@ sap.ui.define([
             aTextIssues.push(codelessRowsText(aIdx, oCfg, rb));
             aInvalidSteps.push(iStep);
           }
-          const iNcIssues = flagNonConformityIssues(oModel, aRows, oCfg, rb);
+          const iNcIssues = flagNonConformityIssues(oModel, aRows, oCfg, rb) + flagMissingResultIssues(oModel, aRows, oCfg, rb);
           if (iNcIssues) {
             iFieldCount += iNcIssues;
             aInvalidSteps.push(iStep);
@@ -419,10 +440,29 @@ sap.ui.define([
             bOk = false;
           }
           if (flagNonConformityIssues(oModel, aRows, oCfg, rb)) { bOk = false; }
+          if (flagMissingResultIssues(oModel, aRows, oCfg, rb)) { bOk = false; }
         });
 
       publishMessages();
       return bOk;
+    }
+
+    /**
+     * [Fix RS-03] Ошибка поля вне валидации шага/сабмита (например, нераспознанная
+     * дата в DatePicker): заменяет прежние сообщения на этот путь и публикует сразу.
+     * Снимается записью непустого значения в путь (clearMessagesForWrite) либо clearFieldError.
+     * @param {sap.ui.model.json.JSONModel} oFormModel
+     * @param {string} sPath абсолютный путь поля
+     * @param {string} sText
+     */
+    static setFieldError (oFormModel, sPath, sText) {
+      removeEntries((e) => e.processor === oFormModel && e.path === sPath);
+      addMessage(oFormModel, sPath, sText);
+      publishMessages();
+    }
+
+    static clearFieldError (oFormModel, sPath) {
+      removeEntries((e) => e.processor === oFormModel && e.path === sPath);
     }
 
     // [Fix FN-05/UX-03] Снимает подсветку этого модуля (Message с target по

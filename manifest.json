@@ -78,7 +78,7 @@
         { "uri": "css/style.css" }
       ]
     },
-    "contentDensities": { "compact": true, "cozy": true },
+    "contentDensities": { "compact": false, "cozy": true },
     "flexEnabled": false
   },
   "sap.fiori": {

@@ -391,6 +391,7 @@ sap.ui.define([
       const rb = this.getResourceBundle();
       const sRetry = rb.getText("btnRetry");
       MessageBox.error(rb.getText("msgDictLoadFailed"), {
+        styleClass: "appMsgBox", // [Fix RV-06]
         details: oErr && oErr.message ? oErr.message : String(oErr || ""),
         actions: [sRetry, MessageBox.Action.CLOSE],
         initialFocus: sRetry,

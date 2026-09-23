@@ -112,10 +112,10 @@
                       rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/CommentMaxLength}"
                       class="appCellTextArea"/>
             <!-- [Fix Memory/Perf] Факторная привязка вместо items+templateShareable:
-                 этот ComboBox сам находится ВНУТРИ шаблона строки Table (шаблон в
+                 этот Select сам находится ВНУТРИ шаблона строки Table (шаблон в
                  шаблоне) — обнаружено бизнес-тестированием: клонирование внешнего
                  ColumnListItem-шаблона не всегда корректно пробрасывает
-                 templateShareable на ВЛОЖЕННый items-биндинг ComboBox в SAPUI5 1.71
+                 templateShareable на ВЛОЖЕННый items-биндинг Select в SAPUI5 1.71
                  ("During a clone operation, a template was found that neither was
                  marked with 'templateShareable:true' nor 'templateShareable:false'"
                  в консоли — framework не уничтожает шаблон, риск утечки памяти при
@@ -125,7 +125,7 @@
                  агрегациях, полностью убирает двусмысленность клонирования. -->
             <!-- [Fix UX-12] Select вместо ComboBox: свободный текст давал видимое
                  "неуд" при Status "". forceSelection="false" — "" = результат не выбран. -->
-            <Select selectedKey="{checksModel>Status}" forceSelection="false"
+            <Select selectedKey="{checksModel>Status}" name="{checksModel>ResultMsg}" forceSelection="false"
                     items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
                     width="100%" class="appCellSelect"/>
             <!-- [Поля несоответствия, по запросу] enabled — formatter, не

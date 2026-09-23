@@ -429,6 +429,7 @@ html.pclApp .appCellTextArea .sapMTextAreaMirror {
   line-height: 1.4 !important;
 }
 
+/* .sapMSuggestionsPopover — глобально: попап в статической области, класса приложения у него нет */
 html.pclLight .appInput .sapMInputBaseContentWrapper,
 html.pclLight .appCellInputField .sapMInputBaseContentWrapper,
 html.pclLight .appCellTextArea .sapMInputBaseContentWrapper,
@@ -446,30 +447,41 @@ html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper {
   box-shadow: var(--pcl-field-shadow-now) !important;
 }
 
-html.pclLight .appInput .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
-html.pclLight .appCellInputField .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
-html.pclLight .appCellTextArea .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
-html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover {
+html.pclLight .appInput .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):not(.sapMInputBaseContentWrapperError):not(.sapMInputBaseContentWrapperWarning):not(.sapMInputBaseContentWrapperSuccess):hover,
+html.pclLight .appCellInputField .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):not(.sapMInputBaseContentWrapperError):not(.sapMInputBaseContentWrapperWarning):not(.sapMInputBaseContentWrapperSuccess):hover,
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):not(.sapMInputBaseContentWrapperError):not(.sapMInputBaseContentWrapperWarning):not(.sapMInputBaseContentWrapperSuccess):hover,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):not(.sapMInputBaseContentWrapperError):not(.sapMInputBaseContentWrapperWarning):not(.sapMInputBaseContentWrapperSuccess):hover {
   --pcl-field-line-color: var(--pcl-field-hover-line);
   --pcl-field-shadow-now: var(--pcl-field-hover-shadow);
 }
 
-/* Состояния (после hover — при ошибке линия остаётся красной) */
-html.pclLight .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperError {
+/* [Fix RV-02] Состояния: hover-правило выше их исключает через :not() (по специфичности
+   оно бы иначе перебило красную/жёлтую линию), так что порядок правил не важен.
+   [Fix RV-08] Ограничено классами полей приложения — без протечки в шелл FLP. */
+html.pclLight .appInput .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperError,
+html.pclLight .appCellInputField .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperError,
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperError,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperError {
   --pcl-field-line-color: var(--pcl-field-error-line);
   --pcl-field-line-width: .125rem;
   --pcl-field-shadow-now: var(--pcl-field-error-shadow);
   background-color: var(--pcl-field-error-bg) !important;
 }
 
-html.pclLight .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperWarning {
+html.pclLight .appInput .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperWarning,
+html.pclLight .appCellInputField .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperWarning,
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperWarning,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperWarning {
   --pcl-field-line-color: var(--pcl-field-warning-line);
   --pcl-field-line-width: .125rem;
   --pcl-field-shadow-now: var(--pcl-field-warning-shadow);
   background-color: var(--pcl-field-warning-bg) !important;
 }
 
-html.pclLight .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess {
+html.pclLight .appInput .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess,
+html.pclLight .appCellInputField .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess,
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess {
   --pcl-field-line-color: var(--pcl-field-success-line);
   --pcl-field-shadow-now: var(--pcl-field-success-shadow);
   background-color: var(--pcl-field-success-bg) !important;
@@ -621,9 +633,11 @@ html.sap-desktop.pclLight .appCellSelect.sapMSlt.sapMSltFocused:not(.sapMSltExpa
    (страница, оба диалога): Назад/Отмена — Default, Далее/Отправить/Выбрать/
    Добавить — Emphasized, строки диалога — Transparent. Нажатие — штатный
    sapMBtnActive (Horizon Active), без transform:scale. */
+/* [Fix RV-06] .appMsgBox — styleClass всех MessageBox (статическая область, без .appPage/.appDialog) */
 html.pclLight .appPage .sapMBtnInner,
 html.pclLight .appDialog .sapMBtnInner,
-html.pclLight .appVhSelectDialog .sapMBtnInner {
+html.pclLight .appVhSelectDialog .sapMBtnInner,
+html.pclLight .appMsgBox .sapMBtnInner {
   border-radius: var(--pcl-radius-button) !important;
   box-shadow: none !important;
   text-shadow: none !important;
@@ -631,7 +645,8 @@ html.pclLight .appVhSelectDialog .sapMBtnInner {
 
 html.pclLight .appPage .sapMBtnInner.sapMBtnDefault,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnDefault,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnDefault {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnDefault,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnDefault {
   background-color: var(--pcl-surface) !important;
   border-color: var(--pcl-btn-border) !important;
   color: var(--pcl-link) !important;
@@ -639,7 +654,8 @@ html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnDefault {
 
 html.pclLight .appPage .sapMBtnInner.sapMBtnTransparent,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnTransparent,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnTransparent {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnTransparent,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnTransparent {
   background-color: transparent !important;
   border-color: transparent !important;
   color: var(--pcl-link) !important;
@@ -648,15 +664,18 @@ html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnTransparent {
 html.pclLight .appPage .sapMBtnInner.sapMBtnDefault .sapMBtnIcon,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnDefault .sapMBtnIcon,
 html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnDefault .sapMBtnIcon,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnDefault .sapMBtnIcon,
 html.pclLight .appPage .sapMBtnInner.sapMBtnTransparent .sapMBtnIcon,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnTransparent .sapMBtnIcon,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnTransparent .sapMBtnIcon {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnTransparent .sapMBtnIcon,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnTransparent .sapMBtnIcon {
   color: var(--pcl-link) !important;
 }
 
 html.pclLight .appPage .sapMBtnInner.sapMBtnEmphasized,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnEmphasized,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnEmphasized {
   background-color: var(--pcl-brand) !important;
   border-color: var(--pcl-brand) !important;
   color: var(--pcl-surface) !important;
@@ -665,7 +684,8 @@ html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized {
 
 html.pclLight .appPage .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon {
   color: var(--pcl-surface) !important;
 }
 
@@ -673,15 +693,18 @@ html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnEmphasized .sapMBtnIcon {
 html.pclLight .appPage .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnDefault:not(.sapMBtnActive),
 html.pclLight .appDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnDefault:not(.sapMBtnActive),
 html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnDefault:not(.sapMBtnActive),
+html.pclLight .appMsgBox .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnDefault:not(.sapMBtnActive),
 html.pclLight .appPage .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnTransparent:not(.sapMBtnActive),
 html.pclLight .appDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnTransparent:not(.sapMBtnActive),
-html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnTransparent:not(.sapMBtnActive) {
+html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnTransparent:not(.sapMBtnActive),
+html.pclLight .appMsgBox .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnTransparent:not(.sapMBtnActive) {
   background-color: var(--pcl-hover) !important;
 }
 
 html.pclLight .appPage .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnEmphasized:not(.sapMBtnActive),
 html.pclLight .appDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnEmphasized:not(.sapMBtnActive),
-html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnEmphasized:not(.sapMBtnActive) {
+html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnEmphasized:not(.sapMBtnActive),
+html.pclLight .appMsgBox .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable.sapMBtnEmphasized:not(.sapMBtnActive) {
   background-color: var(--pcl-brand-hover) !important;
   border-color: var(--pcl-brand-hover) !important;
 }
@@ -689,7 +712,8 @@ html.pclLight .appVhSelectDialog .sapMBtn:hover > .sapMBtnInner.sapMBtnHoverable
 /* Нажатие: sapButton_Active / Emphasized_Active — белый фон, синие рамка и текст */
 html.pclLight .appPage .sapMBtnInner.sapMBtnActive,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnActive,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnActive {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnActive,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnActive {
   background-color: var(--pcl-surface) !important;
   border-color: var(--pcl-link) !important;
   color: var(--pcl-link) !important;
@@ -697,21 +721,24 @@ html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnActive {
 
 html.pclLight .appPage .sapMBtnInner.sapMBtnActive .sapMBtnIcon,
 html.pclLight .appDialog .sapMBtnInner.sapMBtnActive .sapMBtnIcon,
-html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnActive .sapMBtnIcon {
+html.pclLight .appVhSelectDialog .sapMBtnInner.sapMBtnActive .sapMBtnIcon,
+html.pclLight .appMsgBox .sapMBtnInner.sapMBtnActive .sapMBtnIcon {
   color: var(--pcl-link) !important;
 }
 
 /* Фокус клавиатуры (тема рисует его только на desktop) — Horizon-контур */
 html.sap-desktop.pclLight .appPage .sapMBtn:focus > .sapMFocusable,
 html.sap-desktop.pclLight .appDialog .sapMBtn:focus > .sapMFocusable,
-html.sap-desktop.pclLight .appVhSelectDialog .sapMBtn:focus > .sapMFocusable {
+html.sap-desktop.pclLight .appVhSelectDialog .sapMBtn:focus > .sapMFocusable,
+html.sap-desktop.pclLight .appMsgBox .sapMBtn:focus > .sapMFocusable {
   outline: .125rem solid var(--pcl-focus) !important;
   outline-offset: -.1875rem !important;
 }
 
 html.sap-desktop.pclLight .appPage .sapMBtn:focus > .sapMBtnEmphasized.sapMFocusable:not(.sapMBtnActive),
 html.sap-desktop.pclLight .appDialog .sapMBtn:focus > .sapMBtnEmphasized.sapMFocusable:not(.sapMBtnActive),
-html.sap-desktop.pclLight .appVhSelectDialog .sapMBtn:focus > .sapMBtnEmphasized.sapMFocusable:not(.sapMBtnActive) {
+html.sap-desktop.pclLight .appVhSelectDialog .sapMBtn:focus > .sapMBtnEmphasized.sapMFocusable:not(.sapMBtnActive),
+html.sap-desktop.pclLight .appMsgBox .sapMBtn:focus > .sapMBtnEmphasized.sapMFocusable:not(.sapMBtnActive) {
   outline-color: var(--pcl-surface) !important;
 }
 
@@ -922,12 +949,14 @@ html.pclLight .appTable .sapMListTblSubCntHdr .sapMText {
   color: var(--pcl-label) !important;
 }
 
-html.pclApp .appTable .sapMListNoData {
+/* [Fix RV-07] В 1.71 sap.m.Table рисует td.sapMListTblCellNoData (не .sapMListNoData);
+   .sapMListTblCell — чтобы перебить правило темы по специфичности */
+html.pclApp .appTable .sapMListTblCell.sapMListTblCellNoData {
   font-size: var(--pcl-font-m) !important;
   padding: 2rem 1rem !important;
 }
 
-html.pclLight .appTable .sapMListNoData {
+html.pclLight .appTable .sapMListTblCell.sapMListTblCellNoData {
   color: var(--pcl-label) !important;
 }
 
@@ -936,13 +965,18 @@ html.pclApp .appCellCodePicker.sapMHBox {
   align-items: center;
   gap: .25rem;
   min-height: var(--pcl-touch);
-  cursor: pointer;
 }
 
 /* Ссылки и иконка обёрнуты HBox'ом в div.sapMFlexItem — иконку прижимаем
    вправо через её обёртку (иначе при коротком тексте она липнет к ссылке). */
 html.pclApp .appCellCodePicker.sapMHBox > .sapMFlexItem:last-child {
   margin-left: auto;
+}
+
+/* [Fix RV-09] Курсор-рука только на ссылке и иконке: у HBox нет обработчика */
+html.pclApp .appCellCodePicker .sapMLnk,
+html.pclApp .appCellCodeVhIcon.sapUiIcon {
+  cursor: pointer;
 }
 
 html.pclApp .appCellCodeLinkFilled.sapMLnk,
@@ -957,8 +991,9 @@ html.pclApp .appCellCodeLinkPlaceholder.sapMLnk {
 }
 
 /* [Fix VH-05] Ссылки — sapLinkColor #0064d9 (#0070f2 не дотягивал до 4.5:1 на hover-фоне) */
-html.pclLight .appPage .sapMLnk:not(.sapMLnkDsbl),
-html.pclLight .appDialog .sapMLnk:not(.sapMLnkDsbl),
+/* [Fix RV-03] Плейсхолдер кода исключён: он серый (иначе общее правило .appPage перебивает его) */
+html.pclLight .appPage .sapMLnk:not(.sapMLnkDsbl):not(.appCellCodeLinkPlaceholder),
+html.pclLight .appDialog .sapMLnk:not(.sapMLnkDsbl):not(.appCellCodeLinkPlaceholder),
 html.pclLight .appCellCodeLinkFilled.sapMLnk {
   color: var(--pcl-link) !important;
 }
@@ -1040,12 +1075,14 @@ html.pclLight .appDialog .sapMMsgStripSuccess .sapMMsgStripIcon {
 /* [Fix VH-09] Радиус .75rem и Shadow3 (Horizon); растянутый на весь экран
    диалог — без радиуса. */
 html.pclApp .appDialog.sapMDialog:not(.sapMDialogStretched),
-html.pclApp .appVhSelectDialog.sapMDialog:not(.sapMDialogStretched) {
+html.pclApp .appVhSelectDialog.sapMDialog:not(.sapMDialogStretched),
+html.pclApp .appMsgBox.sapMDialog:not(.sapMDialogStretched) {
   overflow: hidden;
 }
 
 html.pclLight .appDialog.sapMDialog:not(.sapMDialogStretched),
-html.pclLight .appVhSelectDialog.sapMDialog:not(.sapMDialogStretched) {
+html.pclLight .appVhSelectDialog.sapMDialog:not(.sapMDialogStretched),
+html.pclLight .appMsgBox.sapMDialog:not(.sapMDialogStretched) {
   border-radius: var(--pcl-radius-container) !important;
   box-shadow: var(--pcl-shadow-3) !important;
 }
@@ -1258,26 +1295,34 @@ html.pclLight .appVhItem.sapMLIB:hover {
   background: var(--pcl-hover) !important;
 }
 
-/* ===== Выпадающие списки (ComboBox, подсказки Input) ===== */
+/* ===== Выпадающие списки (ComboBox, подсказки Input, Select) ===== */
 /* [Fix VH-15] В 1.71 оба — sap.m.SuggestionsPopover (класс sapMSuggestionsPopover);
    прежние .sapMComboBasePicker-Popup/.sapMInputSuggest-Popup не существуют.
-   Высота строк не фиксируется — длинное ФИО не обрезается. */
-html.pclLight .sapMSuggestionsPopover.sapMPopover {
+   Высота строк не фиксируется — длинное ФИО не обрезается.
+   [Fix RV-05] sap.m.Select (уровень ПК, Результат) открывает свой sapMSltPicker
+   со SelectList — те же радиус, тень, hover и выбор.
+   [Fix RV-08] Попапы живут в статической области и без своего класса приложения,
+   поэтому правила здесь глобальны (только пока активен html.pclLight). */
+html.pclLight .sapMSuggestionsPopover.sapMPopover,
+html.pclLight .sapMSltPicker.sapMPopover {
   border-radius: var(--pcl-radius-popover) !important;
   box-shadow: var(--pcl-shadow-2) !important;
   overflow: hidden;
 }
 
-html.pclLight .sapMSuggestionsPopover .sapMLIB:not(.sapMLIBSelected):hover {
+html.pclLight .sapMSuggestionsPopover .sapMLIB:not(.sapMLIBSelected):hover,
+html.pclLight .sapMSltPicker .sapMSelectListItemBaseHoverable:not(.sapMSelectListItemBaseSelected):hover {
   background: var(--pcl-hover) !important;
 }
 
-html.pclLight .sapMSuggestionsPopover .sapMLIB.sapMLIBSelected {
+html.pclLight .sapMSuggestionsPopover .sapMLIB.sapMLIBSelected,
+html.pclLight .sapMSltPicker .sapMSelectListItemBaseSelected {
   background: var(--pcl-selected) !important;
 }
 
 /* ===== MessageToast ===== */
-/* [Fix VH-03] Только пока приложение активно (html.pclLight); без
+/* [Fix VH-03] Только пока приложение активно (html.pclLight); тост глобален
+   (создаётся в статической области); без
    backdrop-filter — дорогой blur на слабых телефонах. */
 html.pclLight .sapMMessageToast {
   background: var(--pcl-toast-bg) !important;

@@ -78,6 +78,7 @@ sap.ui.define([
         return;
       }
       MessageBox.confirm(this.getResourceBundle().getText("msgConfirmDeleteRow"), {
+        styleClass: "appMsgBox", // [Fix RV-06]
         actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
         initialFocus: MessageBox.Action.CANCEL,
         onClose: (sAction) => {
@@ -110,8 +111,8 @@ sap.ui.define([
       // [Fix Dead Code, по запросу] Раньше здесь же писалось ещё и
       // wizardModel>/countsSummary — для отдельного <Text> на шаге "Отправка",
       // дублировавшего то же самое под карточкой сводки. Количество проверок/
-      // барьеров теперь строки ВНУТРИ самой сводки (checksModel>/items.length/
-      // barriersModel>/items.length напрямую в Main.view.xml), второй,
+      // барьеров теперь в самой сводке (formatter.hasChecks/checksTitle и т.д. по
+      // countCodedRows в Main.view.xml, только строки с кодом), второй,
       // отдельно считаемый текст для того же экрана стал не нужен.
       const oStatus = oView.byId("footerStatus");
       if (oStatus) {
@@ -139,6 +140,7 @@ sap.ui.define([
       }
 
       MessageBox.confirm(this.getResourceBundle().getText("msgConfirmPkChangePurge", [iToRemove]), {
+        styleClass: "appMsgBox", // [Fix RV-06]
         actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
         // 1.71: emphasizedAction нет (он с 1.75) — безопасный выбор через initialFocus.
         initialFocus: MessageBox.Action.CANCEL,
@@ -243,8 +245,8 @@ sap.ui.define([
       }, 0);
     },
 
-    // [Fix Memory/Perf] Фабрика для items ComboBox'а "Результат" в
-    // ChecksTable/BarriersTable.fragment.xml — этот ComboBox сам находится
+    // [Fix Memory/Perf] Фабрика для items Select'а "Результат" в
+    // ChecksTable/BarriersTable.fragment.xml — этот Select сам находится
     // внутри шаблона строки Table (шаблон в шаблоне); items+templateShareable
     // на вложенном биндинге не всегда переживает клонирование внешнего
     // ColumnListItem-шаблона в SAPUI5 1.71 ("template ... neither was marked

@@ -42,9 +42,41 @@ sap.ui.define([
     assert.strictEqual(ErrorHandler.getMessage({ statusCode: "503" }, rb), "msgErrServer");
   });
 
-  QUnit.test("без статуса и тела — message ошибки или общий текст", (assert) => {
+  QUnit.test("без ошибки — msgErrUnknown; нет статуса (сеть/таймаут) — msgErrNetwork, не сырой message", (assert) => {
     assert.strictEqual(ErrorHandler.getMessage(null, rb), "msgErrUnknown");
-    assert.strictEqual(ErrorHandler.getMessage({ message: "boom" }, rb), "boom");
-    assert.strictEqual(ErrorHandler.getMessage({}, rb), "msgErrGeneric");
+    assert.strictEqual(ErrorHandler.getMessage({ message: "HTTP request failed" }, rb), "msgErrNetwork");
+    assert.strictEqual(ErrorHandler.getMessage({ statusCode: 0 }, rb), "msgErrNetwork");
+    assert.strictEqual(ErrorHandler.getMessage({}, rb), "msgErrNetwork");
+  });
+
+  QUnit.test("прочие статусы (401/409/429) — msgErrGeneric, message ошибки не показывается", (assert) => {
+    [401, "409", 412, 429].forEach((vStatus) => {
+      assert.strictEqual(ErrorHandler.getMessage({ statusCode: vStatus, message: "HTTP request failed" }, rb), "msgErrGeneric");
+    });
+  });
+
+  QUnit.test("5xx с JSON-телом — msgErrServer, текст бэкенда не показывается", (assert) => {
+    const oErr = {
+      statusCode: "500",
+      responseText: JSON.stringify({ error: { message: { value: "In the context of Data Services an unknown internal server error occurred" } } })
+    };
+    assert.strictEqual(ErrorHandler.getMessage(oErr, rb), "msgErrServer");
+  });
+
+  QUnit.test("errordetails: только severity error/без severity, без /IWBEP/-кодов", (assert) => {
+    const oErr = {
+      statusCode: 400,
+      responseText: JSON.stringify({ error: {
+        message: { value: "Бизнес-ошибка" },
+        innererror: { errordetails: [
+          { code: "/IWBEP/CX_MGW_BUSI_EXCEPTION", message: "An exception was raised.", severity: "error" },
+          { code: "Z/001", message: "Деталь", severity: "error" },
+          { code: "Z/002", message: "Без severity" },
+          { code: "Z/003", message: "Предупреждение", severity: "warning" },
+          { code: "Z/004", message: "Инфо", severity: "info" }
+        ] }
+      } })
+    };
+    assert.strictEqual(ErrorHandler.getMessage(oErr, rb), "Бизнес-ошибка\nДеталь\nБез severity");
   });
 });

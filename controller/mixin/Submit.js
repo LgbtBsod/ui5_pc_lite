@@ -15,6 +15,8 @@ sap.ui.define([
   // Deep Entity payload, сам сабмит и сброс формы после успеха. Чистая
   // реорганизация, без изменения поведения.
   const LOG_COMPONENT = "sap.pc_lite.lite.controller.mixin.Submit";
+  // [Fix RV-06] Общий класс диалогов приложения (стили — css/style.css).
+  const MSG_BOX_CLASS = "appMsgBox";
 
   return {
 
@@ -61,6 +63,7 @@ sap.ui.define([
           aMessages.push("", rb.getText("msgValGoToStep", [rb.getText(WizardSteps.titleKeyOf(iStep))]));
         }
         MessageBox.error(aMessages.join("\n"), {
+          styleClass: MSG_BOX_CLASS,
           onClose: () => {
             if (bJump && !this._bDestroyed) { this._goToStep(iStep, "back"); }
           }
@@ -101,7 +104,7 @@ sap.ui.define([
         );
       } catch (oErr) {
         Log.error("Deep Entity payload build failed", oErr && oErr.message, LOG_COMPONENT);
-        MessageBox.error(rb.getText("msgErrGeneric"));
+        MessageBox.error(rb.getText("msgErrGeneric"), { styleClass: MSG_BOX_CLASS });
         return;
       }
 
@@ -125,13 +128,13 @@ sap.ui.define([
         this._setSubmitBusy(false);
         // [Fix UX-10] Номер созданного документа — единственная "квитанция"
         // (форма сразу сбрасывается); нет DocId в ответе (MockServer) — общий текст.
-        MessageBox.success(sDocId ? rb.getText("msgSubmitSuccessDoc", [sDocId]) : rb.getText("msgSubmitSuccess"));
+        MessageBox.success(sDocId ? rb.getText("msgSubmitSuccessDoc", [sDocId]) : rb.getText("msgSubmitSuccess"), { styleClass: MSG_BOX_CLASS });
         this._resetForm();
       }, (oErr) => {
         Log.error("Deep Entity submit failed", oErr, LOG_COMPONENT);
         if (this._bDestroyed) { return; }
         this._setSubmitBusy(false);
-        MessageBox.error(rb.getText("msgSubmitError", [ErrorHandler.getMessage(oErr, rb)]));
+        MessageBox.error(rb.getText("msgSubmitError", [ErrorHandler.getMessage(oErr, rb)]), { styleClass: MSG_BOX_CLASS });
       }).catch((oErr) => {
         Log.error("Post-submit handling failed", oErr && oErr.message, LOG_COMPONENT);
       });
@@ -198,6 +201,9 @@ sap.ui.define([
       // [Fix WZ-09/FN-01] backToTop() вместо backToPage(first, "show"): строка
       // "show" уходила в backData, а не в анимацию. backToTop очищает всю
       // историю NavContainer, и её зеркало _aNavStack сбрасывается вместе с ней.
+      // [Fix RN-01] afterNavigate не должен уводить фокус из открытого MessageBox.success;
+      // флаг ставится только если переход реально будет (на первой странице события нет).
+      this._bSkipStepFocus = !!oStepNav && oStepNav.getCurrentPage() !== this.byId(WizardSteps.STEP_PAGE_IDS[0]);
       if (oStepNav) { oStepNav.backToTop(); }
       this._aNavStack = [WizardSteps.WHEN];
       this._updateShellBackNavigation(WizardSteps.WHEN);

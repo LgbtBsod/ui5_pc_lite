@@ -65,18 +65,24 @@ sap.ui.define([
       if (!PersonSearchFacade.isQueryLongEnough(sQuery)) {
         return Promise.resolve([]);
       }
+      // [Fix RS-01] sNorm (с ё->е) — только для клиентского второго прохода;
+      // кэш и дедупликация — по строке, которая реально уходит на сервер.
       const sNorm = SearchText.normalize(sQuery);
+      const sSent = PersonSearchFacade._serverText(sQuery);
 
       // Кэш-хит (точный или надмножество от более короткого запроса) — без
       // сети и без debounce: подсказки при допечатывании появляются сразу.
-      const oCached = PersonSearchFacade._findCached(sCheckDate || "", sNorm);
+      // [Fix RS-01] Кэш-хит с пустым итогом не "залипает": надмножество могло быть
+      // неполным (fuzzy/ё) — тогда обычный (debounced) запрос на сервер.
+      const oCached = PersonSearchFacade._findCached(sCheckDate || "", sSent);
       if (oCached) {
-        return Promise.resolve(PersonSearchFacade._finish(oCached.rows, sNorm));
+        const aCachedItems = PersonSearchFacade._finish(oCached.rows, sNorm);
+        if (aCachedItems.length) { return Promise.resolve(aCachedItems); }
       }
 
       return new Promise((resolve, reject) => {
         PersonSearchFacade._oTimers[sKey] = setTimeout(() => {
-          PersonSearchFacade._fetch(oModel, sQuery, sNorm, sCheckDate).then((oResult) => {
+          PersonSearchFacade._fetch(oModel, sSent, sCheckDate).then((oResult) => {
             resolve(iSeq === PersonSearchFacade._oLatestSeq[sKey] ? PersonSearchFacade._finish(oResult.rows, sNorm) : null);
           }, (oError) => {
             if (iSeq !== PersonSearchFacade._oLatestSeq[sKey]) { resolve(null); return; }
@@ -86,31 +92,36 @@ sap.ui.define([
       });
     }
 
+    // Текст, уходящий на сервер: пробелы схлопнуты, нижний регистр, БЕЗ ё->е
+    // (складывает ли ё/е сам сервер — не наше знание, см. abap/README.md).
+    static _serverText(sQuery) {
+      return String(sQuery == null ? "" : sQuery).replace(/\s+/g, " ").trim().toLowerCase();
+    }
+
     /** @returns {boolean} whether the normalized query is long enough to search */
     static isQueryLongEnough(sQuery) {
       return SearchText.normalize(sQuery).length >= MIN_QUERY_LEN;
     }
 
-    // Один запрос на (дата, нормализованный запрос): одновременные/повторные
-    // вызовы получают тот же Promise; отклонённый удаляется из кэша, чтобы
-    // следующий ввод повторил попытку.
-    static _fetch(oModel, sQuery, sNorm, sCheckDate) {
+    // Один запрос на (дата, отправляемый текст): одновременные/повторные
+    // вызовы получают тот же Promise; отклонённый и пустой ответ удаляются из
+    // кэша, чтобы следующий ввод повторил попытку.
+    static _fetch(oModel, sSent, sCheckDate) {
       const sDateKey = sCheckDate || "";
-      const sCacheKey = `${sDateKey}|${sNorm}`;
+      const sCacheKey = `${sDateKey}|${sSent}`;
       const oCache = PersonSearchFacade._oCache;
       const oExisting = oCache.get(sCacheKey);
       if (oExisting) {
         return oExisting.promise;
       }
 
-      const oEntry = { date: sDateKey, query: sNorm, result: null, promise: null };
+      const oEntry = { date: sDateKey, query: sSent, result: null, promise: null };
       oEntry.promise = new Promise((resolve, reject) => {
         const oActiveFilter = PersonSearchFacade._buildActiveOnFilter(sCheckDate);
         oModel.read(`/${BackendConfig.ENTITY_SETS.PERSONS}`, {
           filters: oActiveFilter ? [oActiveFilter] : [],
           urlParameters: {
-            // Исходный текст (без ё->е) — регистр/fuzzy решает сам серверный поиск.
-            "search": String(sQuery).replace(/\s+/g, " ").trim(),
+            "search": sSent,
             "$top": String(SERVER_TOP),
             "$select": "Pernr,Fio,ActiveTo"
           },
@@ -122,9 +133,11 @@ sap.ui.define([
               truncated: aRaw.length >= SERVER_TOP
             };
             if (oResult.truncated) {
-              Log.warning(`Persons search "${sNorm}" hit $top=${SERVER_TOP}; results may be incomplete`, null, LOG_COMPONENT);
+              Log.warning(`Persons search "${sSent}" hit $top=${SERVER_TOP}; results may be incomplete`, null, LOG_COMPONENT);
             }
             oEntry.result = oResult;
+            // [Fix RS-01] Пустой ответ не кэшируем (на нём же строились бы "надмножества").
+            if (!oResult.rows.length && oCache.get(sCacheKey) === oEntry) { oCache.delete(sCacheKey); }
             resolve(oResult);
           },
           error: (oError) => {
@@ -145,32 +158,46 @@ sap.ui.define([
     // Точное совпадение ключа или загруженный НЕусечённый (< $top строк) ответ
     // на более общий запрос той же даты: всё, что матчит новый запрос, матчит
     // и старый (SearchText.isRefinementOf), значит уже есть в его ответе.
-    static _findCached(sDateKey, sNorm) {
+    // Слова сравниваются по сырому (без ё->е) тексту: "семенов" не надмножество для "семёнов".
+    static _findCached(sDateKey, sSent) {
       const oCache = PersonSearchFacade._oCache;
-      const oExact = oCache.get(`${sDateKey}|${sNorm}`);
+      const oExact = oCache.get(`${sDateKey}|${sSent}`);
       if (oExact && oExact.result) {
         return oExact.result;
       }
       let oFound = null;
       oCache.forEach((oEntry) => {
         if (!oFound && oEntry.result && !oEntry.result.truncated && oEntry.date === sDateKey &&
-            SearchText.isRefinementOf(sNorm, oEntry.query)) {
+            PersonSearchFacade._isRawRefinement(sSent, oEntry.query)) {
           oFound = oEntry.result;
         }
       });
       return oFound;
     }
 
-    // Второй проход: нормализованное совпадение всех слов запроса, затем
-    // ранжирование (точное -> начало -> начала слов -> подстрока) и потолок.
+    // Каждое старое слово входит подстрокой в какое-то новое (без ё->е, только нижний регистр).
+    static _isRawRefinement(sNew, sOld) {
+      const aNew = sNew.split(" ");
+      const aOld = sOld.split(" ").filter(Boolean);
+      return aOld.length > 0 && aOld.every((o) => aNew.some((n) => n.indexOf(o) !== -1));
+    }
+
+    // Второй проход: нормализованное совпадение всех слов запроса по "ФИО табельный №"
+    // (сервер ищет и по Pernr — [Fix RS-02]), затем ранжирование (точное -> начало ->
+    // начала слов -> подстрока; совпадение только через Pernr — после ФИО) и потолок.
     // Fio -> Fullname маппится здесь, на границе (StepPeople.fragment.xml/PersonSearch.js ждут Fullname).
     static _finish(aRows, sNorm) {
       return (aRows || [])
-        .filter((r) => SearchText.matches(r.Fio, sNorm))
-        .map((r) => ({ row: r, rank: SearchText.rank(r.Fio, sNorm) }))
+        .filter((r) => SearchText.matches(`${r.Fio} ${r.Pernr || ""}`, sNorm))
+        .map((r) => ({ row: r, rank: PersonSearchFacade._rank(r, sNorm) }))
         .sort((a, b) => (a.rank - b.rank) || a.row.Fio.localeCompare(b.row.Fio, "ru"))
         .slice(0, MAX_SUGGESTIONS)
         .map((o) => ({ Pernr: o.row.Pernr, Fullname: o.row.Fio }));
+    }
+
+    static _rank(oRow, sNorm) {
+      if (SearchText.matches(oRow.Fio, sNorm)) { return SearchText.rank(oRow.Fio, sNorm); }
+      return SearchText.normalize(oRow.Pernr).indexOf(sNorm) === 0 ? 4 : 5;
     }
 
     /**

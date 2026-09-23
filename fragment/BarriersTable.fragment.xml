@@ -11,7 +11,6 @@
   <MessageStrip
     text="{i18n>hintBarriers}"
     type="Information" showIcon="true"
-    class="appHintStrip"
     visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersHidden'}"/>
 
   <!-- [Fix UX, по просьбе] Без Panel-карточки — см. ChecksTable.fragment.xml.
@@ -88,12 +87,12 @@
                       rows="1" growing="true" growingMaxLines="4" maxLength="{constraintsModel>/CommentMaxLength}"
                       class="appCellTextArea"/>
             <!-- [Fix Memory/Perf] Факторная привязка — см. идентичный комментарий
-                 в ChecksTable.fragment.xml (тот же класс проблемы: ComboBox внутри
+                 в ChecksTable.fragment.xml (тот же класс проблемы: Select внутри
                  шаблона строки Table, вложенный items-биндинг с templateShareable
                  не всегда переживает клонирование внешнего шаблона в SAPUI5 1.71). -->
             <!-- [Fix UX-12] Select вместо ComboBox: свободный текст давал видимое
                  "неуд" при Status "". forceSelection="false" — "" = результат не выбран. -->
-            <Select selectedKey="{barriersModel>Status}" forceSelection="false"
+            <Select selectedKey="{barriersModel>Status}" name="{barriersModel>ResultMsg}" forceSelection="false"
                     items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
                     width="100%" class="appCellSelect"/>
             <!-- [Поля несоответствия, по запросу] См. идентичный комментарий

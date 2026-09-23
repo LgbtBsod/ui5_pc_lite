@@ -52,19 +52,26 @@ sap.ui.define([
      */
     static getMessage(oError, rb) {
       if (!oError) { return rb.getText("msgErrUnknown"); }
-      // [Fix FN-08/UX-10] Бизнес-текст бэкенда (например, из
-      // /iwbep/cx_mgw_busi_exception) — главное, что нужно пользователю,
-      // чтобы понять, что исправить; раньше responseText не читался вовсе.
-      const sBackendText = ErrorHandler._extractBackendMessage(oError.responseText);
-      if (sBackendText) { return sBackendText; }
       // [Fix FN-08] В $batch (useBatch: true) statusCode части changeset'а —
       // строка ("400"), строгие === 400/403/404 не срабатывали.
       const iStatus = Number(oError.statusCode);
+      // [Fix RN-02] Бизнес-текст бэкенда (например, из /iwbep/cx_mgw_busi_exception)
+      // показываем только для 4xx: у 5xx тело — англоязычный технический шаблон
+      // Gateway, он только в лог, пользователю — локализованный msgErrServer.
+      if (iStatus < 500 || !iStatus) {
+        const sBackendText = ErrorHandler._extractBackendMessage(oError.responseText);
+        if (sBackendText) { return sBackendText; }
+      } else if (oError.responseText) {
+        Log.error("OData server error body", String(oError.responseText).slice(0, 500));
+      }
+      // [Fix RN-03] Нет статуса — сети/таймаута; oError.message там английское
+      // "HTTP request failed", в UI не показываем (только в лог).
+      if (!iStatus) { return rb.getText("msgErrNetwork"); }
       if (iStatus === 403) { return rb.getText("msgErrForbidden"); }
       if (iStatus === 404) { return rb.getText("msgErrNotFound"); }
       if (iStatus === 400) { return rb.getText("msgErrBadRequest"); }
       if (iStatus >= 500) { return rb.getText("msgErrServer"); }
-      return oError.message || rb.getText("msgErrGeneric");
+      return rb.getText("msgErrGeneric");
     }
 
     /**
@@ -86,7 +93,13 @@ sap.ui.define([
         const vMain = oErr.message;
         const aTexts = [typeof vMain === "string" ? vMain : (vMain && vMain.value)];
         const aDetails = (oErr.innererror && oErr.innererror.errordetails) || [];
-        (Array.isArray(aDetails) ? aDetails : []).forEach((oDetail) => aTexts.push(oDetail && oDetail.message));
+        // [Fix RN-02] Только сообщения уровня error и не технические /IWBEP/-записи
+        // ("An exception was raised."); warning/info контейнера пользователю не нужны.
+        (Array.isArray(aDetails) ? aDetails : []).forEach((oDetail) => {
+          if (!oDetail) { return; }
+          const bError = !oDetail.severity || String(oDetail.severity).toLowerCase() === "error";
+          if (bError && String(oDetail.code || "").indexOf("/IWBEP/") !== 0) { aTexts.push(oDetail.message); }
+        });
         return aTexts
           .map((s) => (typeof s === "string" ? s.trim() : ""))
           .filter((s, i, a) => s && a.indexOf(s) === i)

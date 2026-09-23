@@ -80,18 +80,10 @@ sap.ui.define([
       return !BusinessRules.isBarriersAllowed(sPkLevel);
     }
 
-    // [Fix FN-05/UX-09] Счётчики сводки — только строки с кодом (то, что уйдёт
-    // в payload), тем же BusinessRules.countCodedRows, что и footer. Второй
-    // part биндинга (currentStep) только перезапускает подсчёт при входе на
-    // шаг: выбор кода меняет /items/N/<code> на месте, биндинг /items этого не видит.
-    static checksCount(aItems) {
-      return String(BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Checks.codeProp));
-    }
-
-    static barriersCount(aItems) {
-      return String(BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Barriers.codeProp));
-    }
-
+    // [Fix FN-05/UX-09] Сводка считает только строки с кодом (то, что уйдёт в
+    // payload), тем же BusinessRules.countCodedRows, что и footer. Второй part
+    // биндинга (currentStep) перезапускает подсчёт при входе на шаг: выбор кода
+    // меняет /items/N/<code> на месте, биндинг /items этого не видит.
     static hasChecks(aItems) {
       return BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Checks.codeProp) > 0;
     }
@@ -127,7 +119,9 @@ sap.ui.define([
     // место несоответствия (только они уйдут в payload), иначе — комментарий.
     static summaryRowNote(sResultCode, sNcDescription, sNcLocation, sComment) {
       if (BusinessRules.isUnsatisfactoryResult(sResultCode)) {
-        return [sNcDescription, sNcLocation].filter((s) => s && s.trim()).join(" — ");
+        // Comment уходит в payload всегда (условны только поля несоответствия) —
+        // сводка показывает всё, что реально будет отправлено.
+        return [sNcDescription, sNcLocation, sComment].filter((s) => s && s.trim()).join(" — ");
       }
       return (sComment || "").trim();
     }

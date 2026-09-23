@@ -87,12 +87,12 @@
                шапки шага (как и заголовок), гарантированно виден всегда,
                независимо от того, сколько строк в таблице и куда прокручен
                её собственный скролл. См. также ChecksTable/BarriersTable.fragment.xml
-               (headerToolbar убран оттуда) и style.css (.appWizardFixedToolbar). -->
+               (headerToolbar убран оттуда) и style.css (.appTableToolbar). -->
           <Page id="pageChecks" showHeader="false" showFooter="false" enableScrolling="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
                 <Title text="{i18n>tabChecks}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
-                <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar">
+                <Toolbar class="appTableToolbar">
                   <ToolbarSpacer/>
                   <Button icon="sap-icon://add" text="{i18n>btnAdd}" press="onAddCheckRow"
                           type="Emphasized" tooltip="{i18n>ttAddRow}" class="appToolbarBtn"/>
@@ -116,7 +116,7 @@
             <content>
               <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
                 <Title text="{i18n>tabBarriers}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
-                <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar"
+                <Toolbar class="appTableToolbar"
                          visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersAllowed'}">
                   <ToolbarSpacer/>
                   <Button icon="sap-icon://add" text="{i18n>btnAdd}" press="onAddBarrierRow"
@@ -135,7 +135,7 @@
                заполнены на предыдущих экранах, read-only). -->
           <Page id="pageSubmit" showHeader="false" showFooter="false" class="appStepPage">
             <content>
-              <VBox class="appContent appWizardStepContent appWizardSubmitStep">
+              <VBox class="appContent appWizardStepContent">
                 <Title text="{i18n>wizStepSubmit}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <Text text="{i18n>hintSubmitStep}" class="appWizardSubmitHint"/>
 
@@ -239,7 +239,7 @@
              вместо литерала "6" — единственное число шагов теперь не
              рассинхронится с реальным списком страниц NavContainer. -->
         <Button text="{i18n>btnNext}" type="Emphasized" icon="sap-icon://arrow-right" iconFirst="false"
-                press="onWizardNext" class="appBtnPrimary appWizardNextBtn"
+                press="onWizardNext" class="appWizardNextBtn"
                 visible="{= ${wizardModel>/currentStep} !== ${wizardModel>/totalSteps} }"/>
         <Button id="submitBtn" text="{i18n>btnSubmit}" icon="sap-icon://paper-plane" type="Emphasized"
                 press="onSubmit" class="appBtnSubmit"

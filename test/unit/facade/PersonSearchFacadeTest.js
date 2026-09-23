@@ -35,7 +35,7 @@ sap.ui.define([
     const oModel = makeModel(aPersons);
     return PersonSearchFacade.search(oModel, "  Иванов ", "2026-09-22", "t").then((aItems) => {
       const mUrl = oModel.aCalls[0].params.urlParameters;
-      assert.strictEqual(mUrl.search, "Иванов", "запрос обрезан, уходит в custom query option search");
+      assert.strictEqual(mUrl.search, "иванов", "запрос обрезан и в нижнем регистре, уходит в custom query option search");
       assert.strictEqual(mUrl.$top, "100");
       assert.strictEqual(oModel.aCalls[0].params.filters.length, 1, "ActiveFrom le :date — server-side");
       assert.deepEqual(aItems.map((p) => p.Pernr), ["2", "1"], "Иванова (ActiveTo < даты) отсеяна; начало ФИО выше подстроки");
@@ -66,6 +66,43 @@ sap.ui.define([
         assert.strictEqual(oModel.aCalls.length, 1, "второй запрос не ушёл в сеть");
         assert.deepEqual(aItems.map((p) => p.Pernr), ["2", "3", "1"], "точное совпадение первым");
       });
+  });
+
+  QUnit.test("RS-01: ё/е не склеиваются в кэше — повтор с другой буквой идёт на сервер", (assert) => {
+    const oModel = makeModel(aPersons);
+    return PersonSearchFacade.search(oModel, "семёнов", "", "t")
+      .then(() => PersonSearchFacade.search(oModel, "семенов", "", "t"))
+      .then(() => {
+        assert.strictEqual(oModel.aCalls.length, 2, "разные тексты — разные запросы");
+        assert.strictEqual(oModel.aCalls[1].params.urlParameters.search, "семенов");
+      });
+  });
+
+  QUnit.test("RS-01: пустой ответ не кэшируется", (assert) => {
+    let bEmpty = true;
+    const oModel = {
+      aCalls: [],
+      read (sPath, mParams) {
+        oModel.aCalls.push(mParams.urlParameters.search);
+        setTimeout(() => mParams.success({ results: bEmpty ? [] : aPersons }), 0);
+      }
+    };
+    return PersonSearchFacade.search(oModel, "семенов", "", "t").then((aItems) => {
+      assert.deepEqual(aItems, []);
+      bEmpty = false;
+      return PersonSearchFacade.search(oModel, "семенов", "", "t");
+    }).then((aItems) => {
+      assert.strictEqual(oModel.aCalls.length, 2, "0 строк не залипли в кэше");
+      assert.deepEqual(aItems.map((p) => p.Pernr), ["4"]);
+    });
+  });
+
+  QUnit.test("RS-02: поиск по табельному номеру (в т.ч. вместе с ФИО)", (assert) => {
+    const oModel = makeModel([{ Pernr: "00000003", Fio: "Слесарь Сергей Иванов", ActiveTo: null }, { Pernr: "5", Fio: "Иванов Иван", ActiveTo: null }]);
+    return PersonSearchFacade.search(oModel, "00000003", "", "t").then((aItems) => {
+      assert.deepEqual(aItems.map((p) => p.Pernr), ["00000003"]);
+      return PersonSearchFacade.search(oModel, "Иванов 0000", "", "t");
+    }).then((aItems) => assert.deepEqual(aItems.map((p) => p.Pernr), ["00000003"]));
   });
 
   QUnit.test("другая дата проверки — отдельный запрос", (assert) => {

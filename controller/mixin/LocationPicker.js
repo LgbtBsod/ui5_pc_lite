@@ -1,11 +1,12 @@
 sap.ui.define([
   "sap/ui/Device",
-  "sap/ui/core/ValueState",
   "sap/m/MessageToast",
   "sap/pc_lite/lite/model/EntityConfig",
   "sap/pc_lite/lite/facade/DictionaryFacade",
-  "sap/pc_lite/lite/facade/PersonSearchFacade"
-], (Device, ValueState, MessageToast, EntityConfig, DictionaryFacade, PersonSearchFacade) => {
+  "sap/pc_lite/lite/facade/PersonSearchFacade",
+  "sap/pc_lite/lite/model/FormValidator",
+  "sap/pc_lite/lite/util/SearchText"
+], (Device, MessageToast, EntityConfig, DictionaryFacade, PersonSearchFacade, FormValidator, SearchText) => {
   "use strict";
 
   // [Fix PF-05] Поиск в диалоге фильтрует/перерисовывает список — не на
@@ -28,6 +29,8 @@ sap.ui.define([
         // [Fix VH-16] На телефоне — во весь экран, как SelectDialog value-help.
         oDlg.setStretch(Device.system.phone);
         oDlg.open();
+        // [Fix RS-04] Иерархия могла остаться на прежней дате (сбой/устаревший ответ).
+        this._ensureLocationsAsOf();
 
         const oLocModel = this.getView().getModel("locationModel");
         const sSelectedId = this.getView().getModel("formModel").getProperty("/LocationUUID");
@@ -100,6 +103,14 @@ sap.ui.define([
       // "поиск активен" (путь под найденными строками, текст пустого списка).
       oLocModel.setProperty("/searchQuery", q);
       oList.getBinding("items").filter(DictionaryFacade.buildLocationFilters(oLocModel.getProperty("/currentParentId"), q));
+      // [Fix RS-05] Выбранный узел, не попавший под запрос, скрыт — "Выбрать" не должна его брать.
+      // Тот же предикат (SearchKey + токены), что и в фильтре списка, но по данным модели.
+      if (q && sSelectedId) {
+        const oNode = (oLocModel.getProperty("/items") || []).find((n) => n.NodeID === sSelectedId);
+        if (!oNode || !SearchText.matchTokens(oNode.SearchKey, SearchText.tokens(q))) {
+          oLocModel.setProperty("/selectedNodeId", "");
+        }
+      }
     },
 
     _clearLocSearchTimer () {
@@ -157,15 +168,17 @@ sap.ui.define([
     // payload. Теперь: Error на поле + пустое значение в модели, так что
     // обязательное поле не пропустит шаг. [Fix FN-11/SF-04] Новая валидная
     // дата — перечитать иерархию и перепроверить выбранное на эту дату.
+    // [Fix RS-03] Ошибка формата — Message через FormValidator (тот же канал, что
+    // MessageMixin управляет valueState), а не ручной setValueState: его сбрасывало
+    // обновление data state после записи сырого текста в модель.
     onCheckDateChange (oEvent) {
-      const oPicker = oEvent.getSource();
       const oForm = this.getView().getModel("formModel");
       if (oEvent.getParameter("valid") === false) {
-        this._setPickerState(oPicker, ValueState.Error, this.getResourceBundle().getText("msgCheckDateInvalid"));
+        FormValidator.setFieldError(oForm, "/CheckDate", this.getResourceBundle().getText("msgCheckDateInvalid"));
         oForm.setProperty("/CheckDate", "");
         return;
       }
-      this._setPickerState(oPicker, ValueState.None, "");
+      FormValidator.clearFieldError(oForm, "/CheckDate");
       const sDate = oForm.getProperty("/CheckDate");
       if (sDate) {
         this._reloadForCheckDate(sDate);
@@ -173,18 +186,13 @@ sap.ui.define([
     },
 
     onCheckTimeChange (oEvent) {
-      const oPicker = oEvent.getSource();
+      const oForm = this.getView().getModel("formModel");
       if (oEvent.getParameter("valid") === false) {
-        this._setPickerState(oPicker, ValueState.Error, this.getResourceBundle().getText("msgCheckTimeInvalid"));
-        this.getView().getModel("formModel").setProperty("/CheckTime", "");
+        FormValidator.setFieldError(oForm, "/CheckTime", this.getResourceBundle().getText("msgCheckTimeInvalid"));
+        oForm.setProperty("/CheckTime", "");
         return;
       }
-      this._setPickerState(oPicker, ValueState.None, "");
-    },
-
-    _setPickerState (oPicker, sState, sText) {
-      oPicker.setValueState(sState);
-      oPicker.setValueStateText(sText);
+      FormValidator.clearFieldError(oForm, "/CheckTime");
     },
 
     /**
@@ -194,16 +202,33 @@ sap.ui.define([
      */
     _reloadForCheckDate (sDate) {
       const oView = this.getView();
+      // Подсказки прошлой даты могли включать уже неактивных сотрудников.
+      Object.keys(EntityConfig.ROLES).forEach((sRole) => {
+        oView.getModel(EntityConfig.ROLES[sRole].model).setProperty("/items", []);
+      });
+      this._reloadLocationsForDate(sDate);
+      this._revalidatePersons(sDate);
+    },
+
+    // [Fix RS-04] Иерархия читается только на дату sDate; locationModel>/asOfDate
+    // фиксирует дату, для которой строки действительны (ставит _applyLocationRows).
+    // Вызывается при открытии диалога и на шаге "Когда и где" — повтор после сбоя
+    // или после отброшенного устаревшего ответа.
+    _ensureLocationsAsOf () {
+      const oView = this.getView();
+      const sDate = oView.getModel("formModel").getProperty("/CheckDate");
+      if (sDate && !this._iLocReloadPending && oView.getModel("locationModel").getProperty("/asOfDate") !== sDate) {
+        this._reloadLocationsForDate(sDate);
+      }
+    },
+
+    _reloadLocationsForDate (sDate) {
+      const oView = this.getView();
       const oForm = oView.getModel("formModel");
       const oLocModel = oView.getModel("locationModel");
       const sLocUuid = oForm.getProperty("/LocationUUID");
       const oOldNode = (oLocModel.getProperty("/items") || []).find((n) => n.NodeID === sLocUuid);
       const sLocCode = oOldNode ? oOldNode.NodeCode : "";
-
-      // Подсказки прошлой даты могли включать уже неактивных сотрудников.
-      Object.keys(EntityConfig.ROLES).forEach((sRole) => {
-        oView.getModel(EntityConfig.ROLES[sRole].model).setProperty("/items", []);
-      });
 
       this._setLocationBusy(1);
       DictionaryFacade.loadLocations(oView.getModel(), oLocModel, sDate).then((bApplied) => {
@@ -217,8 +242,6 @@ sap.ui.define([
           MessageToast.show(this.getResourceBundle().getText("msgLocReloadFailed"));
         }
       });
-
-      this._revalidatePersons(sDate);
     },
 
     // Узел не действует на новую дату: та же площадка (LocationCode) в

@@ -1,9 +1,10 @@
 sap.ui.define([
   "sap/m/MessageToast",
+  "sap/base/Log",
   "sap/pc_lite/lite/model/FormValidator",
   "sap/pc_lite/lite/model/WizardSteps",
   "sap/pc_lite/lite/model/BusinessRules"
-], (MessageToast, FormValidator, WizardSteps, BusinessRules) => {
+], (MessageToast, Log, FormValidator, WizardSteps, BusinessRules) => {
   "use strict";
 
   // [Fix SRP, аудит] Один из шести миксинов, на которые был разобран
@@ -44,9 +45,19 @@ sap.ui.define([
     _initStepFocusAnnouncements () {
       const oNavContainer = this.byId("stepNav");
       if (oNavContainer) {
+        // [Fix RN-04] Прокрутка сбрасывается уже на "navigate" (до анимации), иначе
+        // страница выезжала со старым смещением и "прыгала" к началу после слайда.
+        oNavContainer.attachNavigate((oEvent) => this._resetStepScroll(oEvent.getParameter("to")));
         oNavContainer.attachAfterNavigate((oEvent) => {
           this._endStepTransition();
-          this._focusStepHeading(oEvent.getParameter("to"));
+          const oPage = oEvent.getParameter("to");
+          this._resetStepScroll(oPage);
+          // [Fix RN-01] Фокус на заголовок — только при переходе, инициированном
+          // пользователем: после сброса формы (модальный MessageBox "успех" ещё
+          // открыт) на touch-устройствах Popup не возвращает фокус в диалог.
+          const bSkip = this._bSkipStepFocus;
+          this._bSkipStepFocus = false;
+          if (!bSkip && !this._isFocusOutsideView()) { this._focusStepHeading(oPage); }
         });
       }
     },
@@ -58,10 +69,24 @@ sap.ui.define([
     // на DOM-узел. findAggregatedObjects — штатный публичный метод
     // ManagedObject для поиска потомка по предикату, а не самодельный обход
     // дерева контролов.
-    _focusStepHeading (oPage) {
-      // Каждый шаг открывается с начала, а не с позиции прошлого визита
-      // (sap.m.Page запоминает прокрутку между показами).
+    // [Fix RN-04] Каждый шаг открывается с начала, а не с позиции прошлого визита.
+    // Page#scrollTo — no-op при enableScrolling=false (шаги 4-5), там прокручивается
+    // CSS-контейнер .appWizardScrollArea — сбрасываем и его.
+    _resetStepScroll (oPage) {
+      if (!oPage) { return; }
       if (oPage.scrollTo) { oPage.scrollTo(0, 0); }
+      const $Page = oPage.$();
+      if ($Page.length) { $Page.find(".appWizardScrollArea").scrollTop(0); }
+    },
+
+    // [Fix RN-01] Фокус уже вне нашего view (например, внутри модального диалога) — не трогаем.
+    _isFocusOutsideView () {
+      const oAct = document.activeElement;
+      const oViewDom = this.getView().getDomRef();
+      return !!(oAct && oAct !== document.body && oViewDom && !oViewDom.contains(oAct));
+    },
+
+    _focusStepHeading (oPage) {
       const oHeading = oPage.findAggregatedObjects(true, (oCtrl) => oCtrl.hasStyleClass && oCtrl.hasStyleClass("appStepHeading"))[0];
       const oDom = oHeading && oHeading.getDomRef();
       if (oDom) {
@@ -151,6 +176,7 @@ sap.ui.define([
       const sDir = sDirection || (iNewStep > iShownStep ? "forward" : "back");
 
       if (oNavContainer.getCurrentPage() !== oPage) {
+        this._bSkipStepFocus = false; // [Fix RN-01] защитно: устаревший флаг от сброса формы
         this._startStepTransition(oNavContainer);
         if (sDir === "forward") {
           oNavContainer.to(oPage, "slide");
@@ -206,10 +232,17 @@ sap.ui.define([
     _updateShellBackNavigation (iStep) {
       if (!this._oShellUIService) { return; }
       if (!this._fnShellBack) { this._fnShellBack = () => this.onWizardBack(); }
-      if (iStep > WizardSteps.WHEN) {
-        this._oShellUIService.setBackNavigation(this._fnShellBack);
-      } else {
-        this._oShellUIService.setBackNavigation();
+      // [Fix RN-05] setBackNavigation в ushell 1.71 помечен @private — best-effort:
+      // при его исчезновении/смене контракта стрелка просто ведёт себя по умолчанию.
+      if (typeof this._oShellUIService.setBackNavigation !== "function") { return; }
+      try {
+        if (iStep > WizardSteps.WHEN) {
+          this._oShellUIService.setBackNavigation(this._fnShellBack);
+        } else {
+          this._oShellUIService.setBackNavigation();
+        }
+      } catch (oErr) {
+        Log.warning("ShellUIService.setBackNavigation failed", oErr && oErr.message, "sap.pc_lite.lite.controller.mixin.WizardNavigation");
       }
     },
 
@@ -256,6 +289,9 @@ sap.ui.define([
       const oChecksModel = oView.getModel("checksModel");
       const oBarriersModel = oView.getModel("barriersModel");
 
+      // [Fix RS-04] Уходя с "Когда и где": иерархия должна соответствовать дате проверки
+      // (повтор после сбоя прежнего перечитывания); ответ сам перепроверит выбранное место.
+      if (iStep === WizardSteps.WHEN) { this._ensureLocationsAsOf(); }
       const aTextIssues = [];
       if (!FormValidator.isStepComplete(oFormModel, iStep, oChecksModel, oBarriersModel, this.getResourceBundle(), aTextIssues)) {
         this._showStepIncomplete(aTextIssues);

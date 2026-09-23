@@ -140,7 +140,7 @@ sap.ui.define([
         oDictModel.setData(oDict);
 
         if (iLocSeq === oLocSeqByModel.get(oLocModel)) {
-          DictionaryFacade._applyLocationRows(oLocModel, oByKey.LOCATION);
+          DictionaryFacade._applyLocationRows(oLocModel, oByKey.LOCATION, sCheckDate);
         }
       });
     }
@@ -158,12 +158,13 @@ sap.ui.define([
         .then(() => readEntitySet(oModel, `/${ES.LOCATION_HIERARCHY}`, { "$select": LOCATION_SELECT }, oLocFilter ? [oLocFilter] : undefined))
         .then((aRows) => {
           if (iLocSeq !== oLocSeqByModel.get(oLocModel)) { return false; }
-          DictionaryFacade._applyLocationRows(oLocModel, aRows);
+          DictionaryFacade._applyLocationRows(oLocModel, aRows, sCheckDate);
           return true;
         });
     }
 
-    static _applyLocationRows(oLocModel, aRows) {
+    // sAsOf — [Fix RS-04] дата проверки, на которую эти строки действительны.
+    static _applyLocationRows(oLocModel, aRows, sAsOf) {
       // [Fix РЕАЛЬНЫЙ БАГ, по запросу] Сервер уже отсеял строки, не
       // действующие на дату проверки (EffectiveDate le :checkDate, см.
       // _buildLocationAsOfFilter) — но этого недостаточно самого по себе:
@@ -214,6 +215,7 @@ sap.ui.define([
       // обновление, соседние поля не трогает.
       oLocModel.setProperty("/items", aLocItems);
       oLocModel.setProperty("/lookupMap", oLookupMap);
+      oLocModel.setProperty("/asOfDate", sAsOf || "");
     }
 
     // [Fix РЕАЛЬНЫЙ БАГ, по запросу] Зеркалит PersonSearchFacade.js#

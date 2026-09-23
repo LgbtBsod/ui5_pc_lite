@@ -61,7 +61,10 @@ sap.ui.define([
       sap.ui.getCore().attachThemeChanged(syncThemeClass);
     },
 
-    exit (...args) {
+    // [Fix RV-01] Без вызова super: у Component/UIComponent 1.71 метода exit нет
+    // (exit — пустой хук), вызов UIComponent.prototype.exit.apply падал TypeError
+    // при каждом закрытии приложения в FLP.
+    exit () {
       PersonSearchFacade.clearCache();
       sap.ui.getCore().detachThemeChanged(syncThemeClass);
       iLiveInstances = Math.max(0, iLiveInstances - 1);
@@ -69,7 +72,6 @@ sap.ui.define([
         document.documentElement.classList.remove(APP_CLASS);
       }
       syncThemeClass();
-      UIComponent.prototype.exit.apply(this, args);
     }
   });
 });

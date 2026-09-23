@@ -119,6 +119,20 @@ sap.ui.define([
     assert.strictEqual(oResult2.firstInvalidStep, 0, "у лимитов длины шага нет");
   });
 
+  QUnit.test("строка с кодом без выбранного результата — ошибка на Select, а не на полях несоответствия (RR-01)", (assert) => {
+    const oChecks = new JSONModel({ items: [{ CheckCode: "A", Status: "" }, { CheckCode: "B", Status: "X" }, { CheckCode: "", Status: "" }] });
+    const oResult = FormValidator.validate(new JSONModel(validForm()), oChecks, new JSONModel({ items: [] }), rb);
+    assert.strictEqual(oResult.fieldCount, 1, "только строка A: с кодом и без результата");
+    assert.strictEqual(oResult.firstInvalidStep, WizardSteps.CHECKS);
+    const aTargets = sap.ui.getCore().getMessageManager().getMessageModel().getData().map((m) => m.target);
+    assert.deepEqual(aTargets, ["/items/0/ResultMsg"], "цель — путь-приёмник, не /Status и не NonConformity*");
+
+    FormValidator.clearMessages(oChecks);
+    oChecks.setProperty("/items/0/Status", "X");
+    assert.strictEqual(FormValidator.isStepComplete(new JSONModel(validForm()), WizardSteps.CHECKS, oChecks, new JSONModel({ items: [] }), rb), true,
+      "после выбора результата шаг полон");
+  });
+
   QUnit.test("подсветка снимается записью исправленного значения (FN-10/WZ-10/UX-08)", (assert) => {
     const oData = validForm();
     oData.InspectedPernr = "";
@@ -149,6 +163,22 @@ sap.ui.define([
     assert.ok(messageTargets().indexOf("/items/1/NonConformityDescription") !== -1, "добавление в конец не трогает");
     FormValidator.clearMessagesForWrite(oChecks, "/items", aOld.slice(1), aOld);
     assert.deepEqual(messageTargets(), [], "удаление строки — индексы сдвинулись, снято всё по модели");
+  });
+
+  QUnit.test("setFieldError заменяет ошибку пути; пустая запись её не снимает, валидная — снимает (RS-03)", (assert) => {
+    const oForm = new JSONModel(validForm());
+    FormValidator.setFieldError(oForm, "/CheckDate", "bad date");
+    FormValidator.setFieldError(oForm, "/CheckDate", "bad date");
+    assert.deepEqual(messageTargets(), ["/CheckDate"], "одна ошибка на путь");
+
+    FormValidator.clearMessagesForWrite(oForm, "/CheckDate", "");
+    assert.deepEqual(messageTargets(), ["/CheckDate"], "запись пустого значения ошибку не снимает");
+    FormValidator.clearMessagesForWrite(oForm, "/CheckDate", "2026-09-01");
+    assert.deepEqual(messageTargets(), [], "валидное значение снимает");
+
+    FormValidator.setFieldError(oForm, "/CheckTime", "bad time");
+    FormValidator.clearFieldError(oForm, "/CheckTime");
+    assert.deepEqual(messageTargets(), [], "clearFieldError снимает");
   });
 
   return {};

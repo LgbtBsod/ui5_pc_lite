@@ -50,7 +50,7 @@ sap.ui.define([
       // controller/mixin/LocationPicker.js) вместо отдельной производной ветки,
       // которую раньше вручную пересобирал getChildren/filterLevel.
       locationModel: {
-        items: [], lookupMap: {}, currentParentId: "",
+        items: [], lookupMap: {}, asOfDate: "", currentParentId: "",
         selectedNodeId: "", breadcrumbLinks: [], breadcrumbCurrentText: "",
         // [Поиск по всей иерархии, по запросу] Признак "сейчас активен
         // глобальный поиск" — по этому свойству, а не по непустоте текста в
