@@ -53,7 +53,18 @@ sap.ui.define([
       aMessages.push(...oResult.textIssues);
 
       if (aMessages.length) {
-        MessageBox.error(aMessages.join("\n"));
+        // [Fix WZ-05/UX-07] Подсветка — на других шагах: называем шаг первой
+        // ошибки и открываем его после закрытия диалога (сводка read-only).
+        const iStep = oResult.firstInvalidStep ? this._skipBarriersIfNeeded(oResult.firstInvalidStep, "back") : 0;
+        const bJump = iStep > 0 && iStep !== oView.getModel("wizardModel").getProperty("/currentStep");
+        if (bJump) {
+          aMessages.push("", rb.getText("msgValGoToStep", [rb.getText(WizardSteps.titleKeyOf(iStep))]));
+        }
+        MessageBox.error(aMessages.join("\n"), {
+          onClose: () => {
+            if (bJump && !this._bDestroyed) { this._goToStep(iStep, "back"); }
+          }
+        });
         return false;
       }
       return true;
@@ -145,8 +156,22 @@ sap.ui.define([
     _resetForm () {
       if (this._bDestroyed) { return; }
       const oView = this.getView();
+      const oFormModel = oView.getModel("formModel");
+      const sOldDate = oFormModel.getProperty("/CheckDate");
       ["formModel", "checksModel", "barriersModel", "inspectedPersonModel", "inspectorPersonModel", "wizardModel"]
         .forEach((sName) => oView.getModel(sName).setData(ModelsInit.dataFor(sName)));
+      // [Fix FN-04] Уровень КПР сброшен — "последний принятый" тоже.
+      this._sPrevPkLevel = "";
+      // Подсветка прошлой неудачной проверки не должна переживать сброс.
+      FormValidator.clearMessages();
+      // Ручные valueState (обработчики даты/времени и поиска сотрудника).
+      ["checkDate", "checkTime", "inspectedInput", "inspectorInput"].forEach((sId) => {
+        const oCtrl = this.byId(sId);
+        if (oCtrl) { oCtrl.setValueState("None"); }
+      });
+      // [Fix FN-11] Новая запись — на сегодня: иерархия мест прошлой даты устарела.
+      const sNewDate = oFormModel.getProperty("/CheckDate");
+      if (sNewDate && sNewDate !== sOldDate) { this._reloadForCheckDate(sNewDate); }
 
       // [Fix UX] Без этого пользователь после успешного сабмита оставался бы
       // визуально на экране "Отправка" (данные уже сброшены, но NavContainer/

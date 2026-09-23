@@ -2,12 +2,29 @@ sap.ui.define([
   "sap/ui/core/Item",
   "sap/m/MessageBox",
   "sap/m/MessageToast",
+  "sap/base/Log",
   "sap/pc_lite/lite/model/EntityConfig",
   "sap/pc_lite/lite/model/ModelsInit",
   "sap/pc_lite/lite/model/BusinessRules",
-  "sap/pc_lite/lite/facade/DictionaryFacade"
-], (Item, MessageBox, MessageToast, EntityConfig, ModelsInit, BusinessRules, DictionaryFacade) => {
+  "sap/pc_lite/lite/model/FormValidator",
+  "sap/pc_lite/lite/facade/DictionaryFacade",
+  "sap/pc_lite/lite/util/Plural"
+], (Item, MessageBox, MessageToast, Log, EntityConfig, ModelsInit, BusinessRules, FormValidator, DictionaryFacade, Plural) => {
   "use strict";
+
+  const LOG_COMPONENT = "sap.pc_lite.lite.controller.mixin.RowsAndAutoFill";
+  // [Fix SF-11] Пропущенные правила AutoRowRules логируются один раз, не на каждую смену КПР.
+  const oLoggedSkippedRules = new Set();
+
+  // [Fix FN-04/SF-01] ЕДИНЫЙ чистый предикат "строка остаётся на уровне sPkLevel" —
+  // им пользуются и пробный прогон (подтверждение), и реальная чистка.
+  // Секционное правило (sectionGate) авторитетно: запрещённая секция очищается
+  // целиком, иначе строка на скрытом шаге ушла бы в сабмит невидимой.
+  function isRowKeptAtPk (oCfg, oRow, sPkLevel, oDictModel) {
+    if (oCfg.sectionGate && !oCfg.sectionGate(sPkLevel)) { return false; }
+    const sCode = oRow[oCfg.codeProp];
+    return !sCode || DictionaryFacade.isCodeAvailableForPk(oDictModel, oCfg.dictType, sCode, sPkLevel);
+  }
 
   // [Fix SRP, аудит] Один из шести миксинов Main.controller.js (см. верхний
   // комментарий контроллера) — здесь живёт всё вокруг строк Checks/Barriers:
@@ -33,6 +50,9 @@ sap.ui.define([
       this._updateFooterCount();
     },
 
+    // [Fix UX-03] Строку с данными пользователя (комментарий, результат, поля
+    // несоответствия) — только после подтверждения (фокус на "Отмена");
+    // пустую или авто-строку с одним кодом — одним тапом, как раньше.
     _deleteRow (sType, oListItem) {
       if (!oListItem) { return; }
       const oCfg = EntityConfig.TYPES[sType];
@@ -41,9 +61,29 @@ sap.ui.define([
       if (iIdx < 0) { return; }
 
       const oM = this.getView().getModel(oCfg.model);
-      const a = oM.getProperty("/items");
-      oM.setProperty("/items", [...a.slice(0, iIdx), ...a.slice(iIdx + 1)]);
-      this._updateFooterCount();
+      const oRow = (oM.getProperty("/items") || [])[iIdx];
+      // Удаляем по ссылке на строку, а не по индексу: пока открыт диалог, индекс мог устареть.
+      const fnDelete = () => {
+        const a = oM.getProperty("/items") || [];
+        const i = a.indexOf(oRow);
+        if (i < 0) { return; }
+        oM.setProperty("/items", [...a.slice(0, i), ...a.slice(i + 1)]);
+        // Подсветка ошибок привязана к индексам строк — после сдвига она указывала бы на чужую строку.
+        FormValidator.clearMessages(oM);
+        this._updateFooterCount();
+      };
+
+      if (!BusinessRules.hasRowUserData(oRow)) {
+        fnDelete();
+        return;
+      }
+      MessageBox.confirm(this.getResourceBundle().getText("msgConfirmDeleteRow"), {
+        actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+        initialFocus: MessageBox.Action.CANCEL,
+        onClose: (sAction) => {
+          if (sAction === MessageBox.Action.OK && !this._bDestroyed) { fnDelete(); }
+        }
+      });
     },
 
     // [Fix OCP, аудит] Раньше здесь были захардкожены буквально "Checks"/
@@ -59,8 +99,10 @@ sap.ui.define([
 
       const aParts = Object.keys(EntityConfig.TYPES).reduce((aAcc, sType) => {
         const oCfg = EntityConfig.TYPES[sType];
-        const iCount = (oView.getModel(oCfg.model).getProperty("/items") || []).length;
-        if (iCount > 0) { aAcc.push(rb.getText(oCfg.footerCountKey, [iCount])); }
+        // [Fix FN-05] Только строки с кодом — ровно то, что уйдёт в payload.
+        const iCount = BusinessRules.countCodedRows(oView.getModel(oCfg.model).getProperty("/items"), oCfg.codeProp);
+        // [Fix UX-15] "1 проверка / 3 проверки / 5 проверок", а не "1 проверок".
+        if (iCount > 0) { aAcc.push(Plural.getText(rb, oCfg.footerCountKey, iCount)); }
         return aAcc;
       }, []);
       const sText = aParts.join(" · ");
@@ -78,135 +120,127 @@ sap.ui.define([
       }
     },
 
-    // [Fix UX — молчаливая потеря данных] Понижение уровня КПР может сделать
-    // ранее введённые строки проверок/барьеров недоступными (см.
-    // _purgeInvalidRows) — они удаляются из моделей БЕЗ какого-либо сигнала
-    // пользователю, кроме нейтрального "барьеры скрыты/показаны" тоста.
-    // Обнаружено бизнес-тестированием: пользователь, заполнивший 2-3 строки
-    // на КПР-4 и затем поменявший уровень (случайно или намеренно), терял их
-    // без предупреждения — реальный риск потери введённых данных. Теперь
-    // случай "что-то реально удалено" явно приоритетнее нейтральной подсказки
-    // о видимости раздела и показывается через MessageBox.warning (требует
-    // подтверждения), а не мимолётный MessageToast.
-    // [Fix UX] Авто-добавление строк идёт ПОСЛЕ purge (не до): при переходе,
-    // например, с КПР-3 на КПР-2 сперва вычищаются коды, недоступные на
-    // новом уровне, и только затем добавляются дефолтные для КПР-2 — иначе
-    // порядок был бы противоположным (добавили дефолт, тут же снесли, если
-    // бы он не подходил новому уровню, что для текущих правил не случится,
-    // но не гарантировано для будущих mock-данных).
-    // [Fix OCP, аудит] Раньше вызывалось `_purgeInvalidRows("Checks")` и
-    // `_purgeInvalidRows("Barriers")` двумя отдельными хардкодными строками
-    // — тот же класс проблемы, что и у _updateFooterCount выше: гипотетический
-    // третий тип строк никогда не попал бы под purge, если его забыли
-    // дописать сюда третьей строкой. Object.keys(EntityConfig.TYPES) —
-    // единственный источник списка типов, уже используемый остальными
-    // generic-методами этого файла.
+    // [Fix FN-04/WZ-03/UX-02/SF-01] Смена уровня КПР (Select.change). Раньше
+    // строки удалялись СРАЗУ, а MessageBox.warning лишь сообщал о потере. Теперь:
+    // пробный прогон чистки; если что-то удалится — confirm (фокус на "Отмена");
+    // "Отмена" возвращает прежний уровень. Порядок применения: чистка, затем
+    // авто-строки нового уровня. this._sPrevPkLevel — последний принятый уровень.
     onPkLevelChange () {
-      const rb = this.getResourceBundle();
-      const sPkLevel = this.getView().getModel("formModel").getProperty("/PkLevel");
-      const bAllowed = BusinessRules.isBarriersAllowed(sPkLevel);
-      const iTotalRemoved = Object.keys(EntityConfig.TYPES)
-        .reduce((iSum, sType) => iSum + this._purgeInvalidRows(sType), 0);
-      const iAdded = this._applyAutoRows(sPkLevel);
+      const oFormModel = this.getView().getModel("formModel");
+      const sPkLevel = oFormModel.getProperty("/PkLevel") || "";
+      const sPrev = this._sPrevPkLevel || "";
+      // Пустой выбор — переходное состояние, не повод что-либо чистить.
+      if (!sPkLevel || sPkLevel === sPrev) { return; }
 
-      // [Fix UX] Один сигнал пользователю за смену уровня, не три подряд —
-      // потеря данных (purge) остаётся приоритетной и идёт через
-      // MessageBox.warning (требует подтверждения), авто-добавление
-      // дописывается туда же вторым предложением, а не отдельным тостом.
-      // Без purge — авто-добавление важнее нейтральной подсказки о
-      // видимости барьеров, поэтому подменяет её, когда есть что показать.
-      if (iTotalRemoved > 0) {
-        const sMsg = iAdded > 0
-          ? `${rb.getText("msgRowsPurgedOnPkChange", [iTotalRemoved])} ${rb.getText("msgRowsAutoAdded", [iAdded])}`
-          : rb.getText("msgRowsPurgedOnPkChange", [iTotalRemoved]);
-        MessageBox.warning(sMsg);
-      } else if (iAdded > 0) {
-        MessageToast.show(rb.getText("msgRowsAutoAdded", [iAdded]));
-      } else {
-        MessageToast.show(bAllowed ? rb.getText("hintPkIi") : rb.getText("hintPkI"));
+      const iToRemove = this._computePurge(sPkLevel).reduce((iSum, oPlan) => iSum + oPlan.iRemoved, 0);
+      if (iToRemove === 0) {
+        this._commitPkLevel(sPkLevel);
+        return;
       }
-    },
 
-    // [Fix] Барьеры вроде SAFETY_FENCE несут PkLevels="0,1,2,3,4" в справочнике
-    // (сам код валиден на любом уровне), но BusinessRules.isBarriersAllowed
-    // прячет ВСЮ секцию "Барьеры" при уровне 0/1 — при рассинхроне этих двух
-    // независимых правил строка, добавленная на уровне 2, переживала бы
-    // понижение до 0/1 невидимо для пользователя (секция скрыта — удалить
-    // нечем) и всё равно ушла бы в сабмит. Секционное правило теперь
-    // авторитетно: если барьеры запрещены на текущем уровне — очищаем список
-    // целиком, а не полагаемся на per-item PkLevels.
-    // @returns {number} количество реально удалённых строк (для UX-сигнала вызывающему коду).
-    _purgeInvalidRows (sType) {
-      const oCfg = EntityConfig.TYPES[sType];
-      const oView = this.getView();
-      const oM = oView.getModel(oCfg.model);
-      const oDictModel = oView.getModel("dictionaryModel");
-      const sPkLevel = oView.getModel("formModel").getProperty("/PkLevel");
-
-      const aItems = oM.getProperty("/items") || [];
-      // [Fix OCP, аудит] oCfg.sectionGate вместо литерального `sType === "Barriers"`
-      // — тип, для которого целая секция может быть скрыта на каком-то уровне
-      // КПР, теперь определяется наличием sectionGate в EntityConfig.TYPES
-      // (сейчас это только Barriers), а не именем, зашитым здесь.
-      const bSectionForbidden = !!oCfg.sectionGate && !oCfg.sectionGate(sPkLevel);
-      const aFiltered = bSectionForbidden ? [] : aItems.filter((r) => {
-        const sCode = r[oCfg.codeProp];
-        if (!sCode) { return true; }
-        return DictionaryFacade.isCodeAvailableForPk(oDictModel, oCfg.dictType, sCode, sPkLevel);
+      MessageBox.confirm(this.getResourceBundle().getText("msgConfirmPkChangePurge", [iToRemove]), {
+        actions: [MessageBox.Action.OK, MessageBox.Action.CANCEL],
+        // 1.71: emphasizedAction нет (он с 1.75) — безопасный выбор через initialFocus.
+        initialFocus: MessageBox.Action.CANCEL,
+        onClose: (sAction) => {
+          if (this._bDestroyed) { return; }
+          if (sAction !== MessageBox.Action.OK) {
+            // Программная запись не вызывает Select.change — повторного цикла нет.
+            oFormModel.setProperty("/PkLevel", sPrev);
+          } else if (oFormModel.getProperty("/PkLevel") === sPkLevel) {
+            this._commitPkLevel(sPkLevel);
+          }
+        }
       });
-
-      const iRemoved = aItems.length - aFiltered.length;
-      if (iRemoved > 0) {
-        oM.setProperty("/items", aFiltered);
-        this._updateFooterCount();
-      }
-      return iRemoved;
     },
 
-    // [Механизм авто-добавления строк по КПР, см. MIGRATION_MAPPING.md/план]
-    // Правило (какие Checks/Barriers добавлять на каком уровне) — целиком в
-    // данных (AutoRowRules.json/DictionaryFacade.getAutoRowsForPk), не здесь;
-    // контроллер только применяет уже готовый список. Идемпотентно — код,
-    // уже присутствующий в таблице (добавленный вручную или на предыдущий
-    // вызов), не дублируется, поэтому переключение КПР туда-обратно не
-    // плодит строки.
-    // @returns {number} количество реально добавленных строк (для UX-сигнала в onPkLevelChange).
+    // Применяет принятый уровень: чистка (тот же предикат, что и пробный
+    // прогон, пересчитан на момент применения), авто-строки, один сигнал.
+    _commitPkLevel (sPkLevel) {
+      const rb = this.getResourceBundle();
+      const iRemoved = this._computePurge(sPkLevel).reduce((iSum, oPlan) => {
+        if (oPlan.iRemoved > 0) {
+          oPlan.oModel.setProperty("/items", oPlan.aKept);
+          FormValidator.clearMessages(oPlan.oModel);
+        }
+        return iSum + oPlan.iRemoved;
+      }, 0);
+      const iAdded = this._applyAutoRows(sPkLevel);
+      this._sPrevPkLevel = sPkLevel;
+      this._updateFooterCount();
+
+      // Удаление уже подтверждено в диалоге — здесь только короткий итог.
+      const aMsg = [];
+      if (iRemoved > 0) { aMsg.push(rb.getText("msgRowsPurgedOnPkChange", [iRemoved])); }
+      if (iAdded > 0) { aMsg.push(rb.getText("msgRowsAutoAdded", [iAdded])); }
+      if (!aMsg.length) {
+        aMsg.push(BusinessRules.isBarriersAllowed(sPkLevel) ? rb.getText("hintPkIi") : rb.getText("hintPkI"));
+      }
+      MessageToast.show(aMsg.join(" "));
+    },
+
+    /**
+     * Пробный прогон чистки для всех типов строк (EntityConfig.TYPES) — без записи в модели.
+     * @returns {{oModel: sap.ui.model.json.JSONModel, aKept: object[], iRemoved: number}[]}
+     */
+    _computePurge (sPkLevel) {
+      const oView = this.getView();
+      const oDictModel = oView.getModel("dictionaryModel");
+      return Object.keys(EntityConfig.TYPES).map((sType) => {
+        const oCfg = EntityConfig.TYPES[sType];
+        const oModel = oView.getModel(oCfg.model);
+        const aItems = oModel.getProperty("/items") || [];
+        const aKept = aItems.filter((r) => isRowKeptAtPk(oCfg, r, sPkLevel, oDictModel));
+        return { oModel, aKept, iRemoved: aItems.length - aKept.length };
+      });
+    },
+
+    // [Механизм авто-добавления строк по КПР] Правила — целиком в данных
+    // (AutoRowRules.json/DictionaryFacade.getAutoRowsForPk). Идемпотентно: код,
+    // уже присутствующий в таблице, не дублируется.
+    // [Fix SF-11] Правило с неизвестным кодом или кодом, недоступным на этом
+    // уровне, пропускается (лог один раз) — иначе пустая/недопустимая строка
+    // проходила валидацию. [Fix PF-06] Одна запись /items на модель, а не на
+    // правило; footer обновляет вызывающий (_commitPkLevel).
+    // @returns {number} количество реально добавленных строк.
     _applyAutoRows (sPkLevel) {
       const oView = this.getView();
       const oDictModel = oView.getModel("dictionaryModel");
-      const aRules = DictionaryFacade.getAutoRowsForPk(oDictModel, sPkLevel);
-      let iAdded = 0;
+      const mNewRows = {};
 
-      aRules.forEach((oRule) => {
+      DictionaryFacade.getAutoRowsForPk(oDictModel, sPkLevel).forEach((oRule) => {
         const oCfg = EntityConfig.TYPES[oRule.Type];
         if (!oCfg) { return; }
-
-        // Секционное правило (oCfg.sectionGate, см. EntityConfig.TYPES) авторитетно
-        // (см. _purgeInvalidRows) — не добавляем строки для типа, у которого целая
-        // секция скрыта на этом уровне КПР, даже если это по ошибке настроено в
-        // AutoRowRules.json.
         if (oCfg.sectionGate && !oCfg.sectionGate(sPkLevel)) { return; }
 
-        const oM = oView.getModel(oCfg.model);
-        const aItems = oM.getProperty("/items") || [];
-        const bAlreadyPresent = aItems.some((r) => r[oCfg.codeProp] === oRule.Code);
-        if (bAlreadyPresent) { return; }
+        const sText = DictionaryFacade.resolveText(oDictModel, oCfg.dictType, oRule.Code);
+        if (!sText || !DictionaryFacade.isCodeAvailableForPk(oDictModel, oCfg.dictType, oRule.Code, sPkLevel)) {
+          const sRuleKey = `${sPkLevel}/${oRule.Type}/${oRule.Code}`;
+          if (!oLoggedSkippedRules.has(sRuleKey)) {
+            oLoggedSkippedRules.add(sRuleKey);
+            Log.warning(`AutoRowRule skipped: ${oRule.Type}/${oRule.Code} unknown or not valid for PK ${sPkLevel}`, null, LOG_COMPONENT);
+          }
+          return;
+        }
 
-        // [Fix РЕАЛЬНЫЙ БАГ, аудит] DictionaryFacade.resolveText() — тот же
-        // единственный accessor, что теперь использует и
-        // DeepEntityFacade._collectRows, вместо независимо написанного здесь
-        // `getProperty('/_index/${dictType}')` — раньше это было отдельное,
-        // по-другому написанное чтение той же внутренней структуры
-        // dictionaryModel>/_index, ничем не связанное со своим "близнецом".
+        const aQueued = mNewRows[oRule.Type] || (mNewRows[oRule.Type] = []);
+        const aItems = oView.getModel(oCfg.model).getProperty("/items") || [];
+        const fnSameCode = (r) => r[oCfg.codeProp] === oRule.Code;
+        if (aItems.some(fnSameCode) || aQueued.some(fnSameCode)) { return; }
+
         const oRow = ModelsInit.emptyRow(oRule.Type);
         oRow[oCfg.codeProp] = oRule.Code;
-        oRow[oCfg.textProp] = DictionaryFacade.resolveText(oDictModel, oCfg.dictType, oRule.Code);
-        oM.setProperty("/items", [...aItems, oRow]);
-        iAdded++;
+        oRow[oCfg.textProp] = sText;
+        aQueued.push(oRow);
       });
 
-      if (iAdded > 0) { this._updateFooterCount(); }
-      return iAdded;
+      return Object.keys(mNewRows).reduce((iAdded, sType) => {
+        const aNew = mNewRows[sType];
+        if (!aNew.length) { return iAdded; }
+        const oM = oView.getModel(EntityConfig.TYPES[sType].model);
+        oM.setProperty("/items", [...(oM.getProperty("/items") || []), ...aNew]);
+        return iAdded + aNew.length;
+      }, 0);
     },
 
     // [Fix Memory/Perf] Фабрика для items ComboBox'а "Результат" в

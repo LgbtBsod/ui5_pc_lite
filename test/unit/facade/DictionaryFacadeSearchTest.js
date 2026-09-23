@@ -48,6 +48,9 @@ sap.ui.define([
   QUnit.test("ответ для более старой даты не затирает более новый", (assert) => {
     const aPending = [];
     const oModel = {
+      isMetadataLoadingFailed: () => false,
+      attachEventOnce: () => {},
+      detachEvent: () => {},
       metadataLoaded: () => Promise.resolve(),
       read: (sPath, mParams) => aPending.push(mParams)
     };
@@ -68,6 +71,39 @@ sap.ui.define([
       assert.strictEqual(bNew, true);
       assert.strictEqual(oStore["/items"][0].NodeID, "NEW");
       assert.ok(oStore["/lookupMap"].NEW, "lookupMap из того же ответа");
+    });
+  });
+
+  QUnit.module("facade/DictionaryFacade#load — сбой $metadata");
+
+  QUnit.test("load() отклоняется по metadataFailed, запросы не уходят (UX-13)", (assert) => {
+    let fnFailed = null;
+    let iReads = 0;
+    const oModel = {
+      isMetadataLoadingFailed: () => false,
+      attachEventOnce: (sEvent, fn) => { if (sEvent === "metadataFailed") { fnFailed = fn; } },
+      detachEvent: () => {},
+      metadataLoaded: () => new Promise(() => {}), // 1.71: при сбое не завершается никогда
+      read: () => { iReads++; }
+    };
+    const pLoad = DictionaryFacade.load(oModel, {}, { setProperty: () => {} }, "2026-09-01");
+    fnFailed({ getParameter: () => "HTTP 500" });
+    return pLoad.then(() => assert.ok(false, "не должен выполниться"), (oErr) => {
+      assert.strictEqual(oErr.message, "HTTP 500");
+      assert.strictEqual(iReads, 0, "справочники не запрашивались");
+    });
+  });
+
+  QUnit.test("повтор после сбоя идёт через refreshMetadata() (UX-13)", (assert) => {
+    let iRefresh = 0;
+    const oModel = {
+      isMetadataLoadingFailed: () => true,
+      refreshMetadata: () => { iRefresh++; return Promise.reject({ message: "still down" }); },
+      read: () => {}
+    };
+    return DictionaryFacade.load(oModel, {}, { setProperty: () => {} }, "").then(() => assert.ok(false), (oErr) => {
+      assert.strictEqual(iRefresh, 1);
+      assert.strictEqual(oErr.message, "still down");
     });
   });
 });

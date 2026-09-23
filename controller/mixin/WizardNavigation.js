@@ -90,12 +90,13 @@ sap.ui.define([
       const sDirection = iTapped > iCurrent ? "forward" : "back";
       let iTarget = iTapped;
       let bIncomplete = false;
+      const aTextIssues = [];
       if (sDirection === "forward") {
         const bBarriersAllowed = BusinessRules.isBarriersAllowed(oView.getModel("formModel").getProperty("/PkLevel"));
         for (let iStep = iCurrent; iStep < iTapped; iStep++) {
           if (iStep === WizardSteps.BARRIERS && !bBarriersAllowed) { continue; }
           if (!FormValidator.isStepComplete(oView.getModel("formModel"), iStep, oView.getModel("checksModel"),
-            oView.getModel("barriersModel"), this.getResourceBundle())) {
+            oView.getModel("barriersModel"), this.getResourceBundle(), aTextIssues)) {
             iTarget = iStep;
             bIncomplete = true;
             break;
@@ -103,7 +104,7 @@ sap.ui.define([
         }
       }
       if (bIncomplete) {
-        MessageToast.show(this.getResourceBundle().getText("msgStepIncomplete"));
+        this._showStepIncomplete(aTextIssues);
       } else {
         iTarget = this._skipBarriersIfNeeded(iTarget, sDirection);
       }
@@ -252,11 +253,21 @@ sap.ui.define([
       const oChecksModel = oView.getModel("checksModel");
       const oBarriersModel = oView.getModel("barriersModel");
 
-      if (!FormValidator.isStepComplete(oFormModel, iStep, oChecksModel, oBarriersModel, this.getResourceBundle())) {
-        MessageToast.show(this.getResourceBundle().getText("msgStepIncomplete"));
+      const aTextIssues = [];
+      if (!FormValidator.isStepComplete(oFormModel, iStep, oChecksModel, oBarriersModel, this.getResourceBundle(), aTextIssues)) {
+        this._showStepIncomplete(aTextIssues);
         return;
       }
       this._goToStep(this._skipBarriersIfNeeded(iStep + 1, "forward"), "forward");
+    },
+
+    // [Fix WZ-06/UX-07] Конкретная причина (нет строки с кодом, строки без кода,
+    // один сотрудник в обеих ролях) вместо общего "заполните обязательные поля",
+    // когда подсветка поля её не объясняет.
+    _showStepIncomplete (aTextIssues) {
+      MessageToast.show(aTextIssues && aTextIssues.length
+        ? aTextIssues.join("\n")
+        : this.getResourceBundle().getText("msgStepIncomplete"));
     },
 
     // [Поэтапный ввод, по просьбе] Возврат назад — без какой-либо проверки

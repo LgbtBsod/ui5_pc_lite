@@ -19,19 +19,21 @@ sap.ui.define(["sap/pc_lite/lite/model/BusinessRules"], (BusinessRules) => {
     // их отсюда же, хотя именно эта карта — заявленная точка расширения
     // (см. остальные потребители: _addRow/_deleteRow/_applyAutoRows/
     // DeepEntityFacade._collectRows уже читают её полностью дженерик).
+    // sectionKey — [Fix FN-05] имя раздела для текстов валидации строк.
     // sectionGate отсутствует у Checks — секция всегда разрешена, что
-    // _purgeInvalidRows трактует как "не барьеры-специфичный случай".
+    // _computePurge (RowsAndAutoFill.js) трактует как "не барьеры-специфичный случай".
     // footerCountKey — [Fix OCP/DRY, аудит] тот же приём, что titleKey/
     // sectionGate выше: RowsAndAutoFill.js#_updateFooterCount раньше не
     // читал эту карту вовсе, а напрямую хардкодил `"Checks"`/`"Barriers"` и
     // соответствующие им имена моделей/i18n-ключи (footerCountChecks/
     // footerCountBarriers) — единственные два места во всём миксине, не
     // прошедшие через EntityConfig.TYPES, при том что все соседние методы
-    // (_addRow/_deleteRow/_applyAutoRows/_purgeInvalidRows/DeepEntityFacade.
+    // (_addRow/_deleteRow/_applyAutoRows/_computePurge/DeepEntityFacade.
     // _collectRows) уже дженерик и читают конфиг по sType. Имя i18n-ключа не
     // выводится из имени типа механически (footerCountChecks — не просто
     // "footerCount" + sType в нижнем регистре какой-то системой), поэтому
     // явное поле здесь, а не конкатенация строки в вызывающем коде.
+    // [Fix UX-15] Это базовый ключ: в i18n — формы _one/_few/_many (util/Plural.js).
     TYPES: {
       Checks: {
         model: "checksModel",
@@ -40,6 +42,7 @@ sap.ui.define(["sap/pc_lite/lite/model/BusinessRules"], (BusinessRules) => {
         dictType: "CHECKS",
         tableId: "checksTable",
         titleKey: "vhChecksTitle",
+        sectionKey: "tabChecks",
         footerCountKey: "footerCountChecks"
       },
       Barriers: {
@@ -49,6 +52,7 @@ sap.ui.define(["sap/pc_lite/lite/model/BusinessRules"], (BusinessRules) => {
         dictType: "BARRIERS",
         tableId: "barriersTable",
         titleKey: "vhBarriersTitle",
+        sectionKey: "tabBarriers",
         footerCountKey: "footerCountBarriers",
         sectionGate: BusinessRules.isBarriersAllowed
       }
@@ -67,7 +71,7 @@ sap.ui.define(["sap/pc_lite/lite/model/BusinessRules"], (BusinessRules) => {
     // [SSOT] Единственный источник констрейнтов, продублированных в metadata.xml
     // (Barrier.Comment/CheckItem.Comment MaxLength="2000", CheckRoot.Equipment
     // MaxLength="100") — раньше эти же числа были захардкожены литералами ещё и
-    // в ChecksTable.fragment.xml/BarriersTable.fragment.xml/BaseInfo.fragment.xml.
+    // в ChecksTable.fragment.xml/BarriersTable.fragment.xml/StepProfessionPk.fragment.xml.
     // ModelsInit публикует эти значения как constraintsModel — фрагменты биндятся
     // на него вместо повторения литералов. Формат даты/времени — тот же принцип:
     // единственная пара паттернов, используемая и util/ODataFormat.js (парсинг),
@@ -103,7 +107,10 @@ sap.ui.define(["sap/pc_lite/lite/model/BusinessRules"], (BusinessRules) => {
       // правка одного места молча не долетела бы до другого. Единственный
       // источник — здесь, formatter.js и фрагмент оба биндятся на
       // constraintsModel>/DisplayDateFormat.
-      DisplayDateFormat: "dd.MM.yyyy"
+      DisplayDateFormat: "dd.MM.yyyy",
+      // [Fix UX-11] TimePicker и сводка показывают ЧЧ:ММ (секунд при вводе
+      // проверки нет); в модели и OData по-прежнему TimeValueFormat.
+      DisplayTimeFormat: "HH:mm"
     }
   };
 });

@@ -1,9 +1,10 @@
 sap.ui.define([
   "sap/ui/core/format/DateFormat",
+  "sap/base/strings/formatMessage",
   "sap/pc_lite/lite/model/EntityConfig",
   "sap/pc_lite/lite/model/BusinessRules",
   "sap/pc_lite/lite/facade/DictionaryFacade"
-], (DateFormat, EntityConfig, BusinessRules, DictionaryFacade) => {
+], (DateFormat, formatMessage, EntityConfig, BusinessRules, DictionaryFacade) => {
   "use strict";
 
   // [SSOT] Тот же исходный паттерн, что util/ODataFormat.js и DatePicker>
@@ -14,6 +15,9 @@ sap.ui.define([
   // паттерн, на который биндится DatePicker>displayFormat в
   // StepWhenWhere.fragment.xml, а не независимый литерал "dd.MM.yyyy" здесь.
   const oDisplayDateFmt = DateFormat.getInstance({ pattern: EntityConfig.CONSTRAINTS.DisplayDateFormat, UTC: true });
+  // [Fix UX-11] Время в сводке — тем же displayFormat, что у TimePicker на шаге 1.
+  const oValueTimeFmt = DateFormat.getTimeInstance({ pattern: EntityConfig.CONSTRAINTS.TimeValueFormat });
+  const oDisplayTimeFmt = DateFormat.getTimeInstance({ pattern: EntityConfig.CONSTRAINTS.DisplayTimeFormat });
 
   // Спред в Controller.extend({ formatter: Formatter, ... }) — статические
   // методы резолвятся биндингом ".formatter.xyz" как обычные функции.
@@ -74,6 +78,58 @@ sap.ui.define([
 
     static isBarriersHidden(sPkLevel) {
       return !BusinessRules.isBarriersAllowed(sPkLevel);
+    }
+
+    // [Fix FN-05/UX-09] Счётчики сводки — только строки с кодом (то, что уйдёт
+    // в payload), тем же BusinessRules.countCodedRows, что и footer. Второй
+    // part биндинга (currentStep) только перезапускает подсчёт при входе на
+    // шаг: выбор кода меняет /items/N/<code> на месте, биндинг /items этого не видит.
+    static checksCount(aItems) {
+      return String(BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Checks.codeProp));
+    }
+
+    static barriersCount(aItems) {
+      return String(BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Barriers.codeProp));
+    }
+
+    static hasChecks(aItems) {
+      return BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Checks.codeProp) > 0;
+    }
+
+    static hasBarriers(aItems) {
+      return BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Barriers.codeProp) > 0;
+    }
+
+    // [Fix UX-11] Заголовки списков сводки: "Проверки ({0})" из i18n (первый part).
+    static checksTitle(sPattern, aItems) {
+      return formatMessage(sPattern || "", [BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Checks.codeProp)]);
+    }
+
+    static barriersTitle(sPattern, aItems) {
+      return formatMessage(sPattern || "", [BusinessRules.countCodedRows(aItems, EntityConfig.TYPES.Barriers.codeProp)]);
+    }
+
+    // [Fix UX-11] "HH:mm:ss" модели -> "HH:mm", как пользователь вводил на шаге 1.
+    static displayTime(sTime) {
+      if (!sTime) { return ""; }
+      const oTime = oValueTimeFmt.parse(sTime);
+      return oTime ? oDisplayTimeFmt.format(oTime) : sTime;
+    }
+
+    // [Fix UX-11] Результат строки в сводке: "Неудовлетворительно" — Error,
+    // любой другой выбранный — Success, не выбран — None.
+    static resultState(sResultCode) {
+      if (BusinessRules.isUnsatisfactoryResult(sResultCode)) { return "Error"; }
+      return sResultCode ? "Success" : "None";
+    }
+
+    // [Fix UX-11] Подпись строки сводки: при "Неудовлетворительно" — описание и
+    // место несоответствия (только они уйдут в payload), иначе — комментарий.
+    static summaryRowNote(sResultCode, sNcDescription, sNcLocation, sComment) {
+      if (BusinessRules.isUnsatisfactoryResult(sResultCode)) {
+        return [sNcDescription, sNcLocation].filter((s) => s && s.trim()).join(" — ");
+      }
+      return (sComment || "").trim();
     }
   }
 

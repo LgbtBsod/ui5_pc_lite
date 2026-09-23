@@ -23,7 +23,8 @@
         <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colComment}"/>
         </Column>
-        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+        <!-- [Fix, замер] 15rem: "Неудовлетворительно" + стрелка Select не влезали. -->
+        <Column width="15rem" minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colResult}"/>
         </Column>
         <!-- [Поля несоответствия, по запросу] Активны (enabled) только когда
@@ -120,9 +121,11 @@
                  Item заново на каждый вызов вместо клонирования общего шаблона —
                  сценарий, для которого factory и предназначен в списковых
                  агрегациях, полностью убирает двусмысленность клонирования. -->
-            <ComboBox selectedKey="{checksModel>Status}"
-                      items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
-                      width="100%" class="appCellComboBox"/>
+            <!-- [Fix UX-12] Select вместо ComboBox: свободный текст давал видимое
+                 "неуд" при Status "". forceSelection="false" — "" = результат не выбран. -->
+            <Select selectedKey="{checksModel>Status}" forceSelection="false"
+                    items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
+                    width="100%" class="appCellSelect"/>
             <!-- [Поля несоответствия, по запросу] enabled — formatter, не
                  expression binding: expression binding на enabled работает
                  (в отличие от class, см. выше) — формуттер здесь только

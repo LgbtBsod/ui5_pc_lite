@@ -32,14 +32,17 @@ html.pclApp {
   --pcl-focus: #0032a5;               /* sapContent_FocusColor */
   --pcl-border-container: #d9d9d9;    /* sapGroup_ContentBorderColor, sapToolbar_SeparatorColor */
   --pcl-border-list-header: #a8b2bd;  /* sapList_HeaderBorderColor, sapList_GroupHeaderBorderColor */
-  --pcl-border-foreground: #758ca4;   /* sapContent_ForegroundBorderColor */
+  --pcl-border-list: #e5e5e5;         /* sapList_BorderColor (в WPN Horizon — ещё не пройденные шаги) */
+  --pcl-icon: #131e29;                /* sapContent_IconColor (иконки полей: календарь, часы, value help) */
   --pcl-btn-border: #bcc3ca;          /* sapButton_BorderColor */
   --pcl-hover: #eaecee;               /* sapList_Hover_Background, sapButton_Hover_Background */
   --pcl-selected: #ebf8ff;            /* sapList_SelectionBackgroundColor */
   --pcl-field-line: #556b81;          /* sapField_BorderColor */
-  --pcl-field-shadow: inset 0 0 0 .0625rem rgba(85, 107, 129, .25);       /* sapField_Shadow */
+  --pcl-field-ring: rgba(85, 107, 129, .25);                              /* цвет sapField_Shadow */
+  --pcl-field-shadow: inset 0 0 0 .0625rem var(--pcl-field-ring);         /* sapField_Shadow */
   --pcl-field-hover-line: #0064d9;    /* sapField_Hover_BorderColor */
-  --pcl-field-hover-shadow: inset 0 0 0 .0625rem rgba(79, 160, 255, .5);  /* sapField_Hover_Shadow */
+  --pcl-field-hover-ring: rgba(79, 160, 255, .5);                         /* цвет sapField_Hover_Shadow */
+  --pcl-field-hover-shadow: inset 0 0 0 .0625rem var(--pcl-field-hover-ring); /* sapField_Hover_Shadow */
   --pcl-field-error-bg: #ffeaf4;      /* sapField_InvalidBackground */
   --pcl-field-error-line: #e90b0b;    /* sapField_InvalidColor */
   --pcl-field-error-shadow: inset 0 0 0 .0625rem rgba(255, 142, 196, .45); /* sapField_InvalidShadow */
@@ -75,7 +78,7 @@ html.pclApp {
   --pcl-shadow-2: 0 0 0 .0625rem rgba(34, 53, 72, .48), 0 .625rem 1.875rem 0 rgba(34, 53, 72, .25);   /* sapContent_Shadow2 */
   --pcl-shadow-3: 0 0 0 .0625rem rgba(34, 53, 72, .48), 0 1.25rem 5rem 0 rgba(34, 53, 72, .25);       /* sapContent_Shadow3 */
   --pcl-header-shadow: 0 .125rem .125rem 0 rgba(34, 53, 72, .05), inset 0 -.0625rem 0 0 #d9d9d9;     /* sapContent_HeaderShadow */
-  --pcl-footer-shadow: 0 -.125rem .125rem 0 rgba(34, 53, 72, .05), inset 0 .0625rem 0 0 #d9d9d9;     /* HeaderShadow, зеркально */
+  --pcl-footer-shadow: inset 0 .0625rem 0 0 #d9d9d9;  /* footer Horizon: без тени, линия сверху sapPageFooter_BorderColor */
 
   /* Типографика: у "72" в 1.71 есть только 400 и 700 — 500/600 не используем */
   --pcl-font-m: .875rem;              /* sapFontSize */
@@ -84,6 +87,7 @@ html.pclApp {
 
   /* Размеры */
   --pcl-gutter: 1rem;                 /* отступ контента: 1rem (S), 2rem (M+) */
+  --pcl-form-max: 40rem;              /* ширина шагов-форм на широком экране */
   --pcl-touch: 2.75rem;               /* sapElement_LineHeight — 44px цель касания */
   --pcl-footer-height: 3.5rem;        /* 44px кнопки + 6px сверху/снизу */
   /* [Fix, по скриншоту] sap.m.Button 1.71 держит место под иконку padding'ом
@@ -124,6 +128,13 @@ html.pclApp .appPage > .sapMPageHeader .sapMTitle {
   font-weight: bold !important;
 }
 
+/* Horizon выравнивает заголовок по началу, на линии отступа контента (1.71 центрирует) */
+html.pclApp .appPage > .sapMPageHeader .sapMBarPH {
+  text-align: left;
+  padding-left: var(--pcl-gutter);
+  padding-right: var(--pcl-gutter);
+}
+
 html.pclLight .appPage > .sapMPageHeader .sapMTitle {
   color: var(--pcl-text) !important;
 }
@@ -158,6 +169,12 @@ html.pclApp .appWizardStepContent {
   gap: 1rem;
 }
 
+/* Шаги-формы на широком экране не тянутся на всю ширину (левый край тот же);
+   шаги с таблицами — во всю ширину. */
+html.pclApp .appWizardStepContent:not(.appWizardStepContentFixed) {
+  max-width: calc(var(--pcl-form-max) + 2 * var(--pcl-gutter));
+}
+
 /* [Fix VH-07] Footer теперь ровно той высоты, на которую Page отодвигает
    section (см. .appFooter) — прежние 6rem "запаса" снизу больше не нужны. */
 /* Шаги с таблицами: заголовок и "Добавить" неподвижны, скроллится только
@@ -175,14 +192,18 @@ html.pclApp .appWizardScrollArea {
   padding-bottom: 1rem;
 }
 
-html.pclApp .appStepHeading.sapMText,
+/* [Fix WZ-11/UX-16] Заголовок шага — sap.m.Title (h2, wrapping). Фокус на нём
+   только программный (объявление шага скринридеру) — рамку фокуса не рисуем. */
 html.pclApp .appStepHeading.sapMTitle {
   display: block;
   font-size: var(--pcl-font-h4) !important;
   font-weight: bold !important;
 }
 
-html.pclLight .appStepHeading.sapMText,
+html.pclApp .appStepHeading.sapMTitle:focus {
+  outline: none;
+}
+
 html.pclLight .appStepHeading.sapMTitle {
   color: var(--pcl-text) !important;
 }
@@ -213,19 +234,23 @@ html.pclApp .appProgressNav.sapMWizardProgressNav {
   padding-right: calc(var(--pcl-gutter) - .5rem);
 }
 
+/* Ширина шага — по подписи, а не поровну (table-layout: fixed темы): иначе
+   "Профессия и уровень КПР" обрезалась даже на 1280px. Когда места мало,
+   подписи по-прежнему сжимаются с многоточием, без переполнения (420–1920px). */
+html.pclApp .appProgressNav .sapMWizardProgressNavList {
+  table-layout: auto;
+}
+
 html.pclLight .appProgressNav.sapMWizardProgressNav {
   background: var(--pcl-surface) !important;
   box-shadow: var(--pcl-header-shadow) !important;
 }
 
-/* Подписи — одна строка с многоточием (полный текст в title и в заголовке шага);
-   белая подложка подписи маскирует соединительную линию под текстом. */
+/* Подписи — одна строка с многоточием, 72-Bold как в Horizon; белая подложка
+   подписи маскирует соединительную линию под текстом. */
 html.pclApp .appProgressNav .sapMWizardProgressNavAnchorTitle {
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-html.pclApp .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-current="true"] .sapMWizardProgressNavAnchorTitle {
   font-weight: bold;
 }
 
@@ -248,9 +273,9 @@ html.pclLight .appProgressNav .sapMWizardProgressNavStep::after {
   border-bottom-color: var(--pcl-link) !important;
 }
 
-/* Ещё не достигнутые шаги */
+/* Ещё не достигнутые шаги (значения — как в WizardProgressNavigator Horizon) */
 html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-active="true"] ~ .sapMWizardProgressNavStep .sapMWizardProgressNavAnchorCircle {
-  border-color: var(--pcl-border-foreground) !important;
+  border-color: var(--pcl-border-list) !important;
   color: var(--pcl-label) !important;
 }
 
@@ -260,14 +285,18 @@ html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-ac
 
 html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-active="true"]::after,
 html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-active="true"] ~ .sapMWizardProgressNavStep::after {
-  border-bottom-color: var(--pcl-border-foreground) !important;
+  border-bottom-color: var(--pcl-border-list) !important;
 }
 
-/* Текущий шаг */
+/* Текущий шаг: кружок и подпись — sapSelectedColor */
 html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-current="true"] .sapMWizardProgressNavAnchorCircle {
   background: var(--pcl-link) !important;
   border-color: var(--pcl-link) !important;
   color: var(--pcl-surface) !important;
+}
+
+html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-current="true"] .sapMWizardProgressNavAnchorTitle {
+  color: var(--pcl-link) !important;
 }
 
 html.pclLight .appProgressNav .sapMWizardProgressNavStep[data-sap-ui-wpn-step-current="true"] .sapMWizardProgressNavAnchorCircle::after {
@@ -304,13 +333,28 @@ html.pclApp .appForm .sapUiFormResGridCont > .sapUiFormElementLbl:first-child {
   padding-top: 0 !important;
 }
 
+/* Тема на M/L/XL ставит подписи text-align:end !important селектором из 5
+   классов (.sapUiRespGridMedia-Std-Desktop...>.sapMLabel), а двоеточие (::after)
+   — абсолютно у правого края. Перебиваем более специфичным селектором, иначе на
+   планшете/desktop подпись уезжала вправо, а ":" отрывалось от текста. */
+html.pclApp .appForm .sapUiFormResGridCont > .sapUiFormElementLbl > .appLabel.sapMLabel {
+  text-align: left !important;
+}
+
+html.pclApp .appForm .sapUiFormResGridCont > .sapUiFormElementLbl > .appLabel.sapMLabel::after {
+  position: static;
+}
+
 html.pclApp .appForm .sapMInputBase,
 html.pclApp .appForm .sapMText {
   width: 100% !important;
   box-sizing: border-box !important;
 }
 
+/* border-box: у Label темы padding-right под "*" — с width:100% подпись
+   вылезала за ячейку формы на 4px. */
 html.pclApp .appLabel.sapMLabel {
+  box-sizing: border-box;
   font-size: var(--pcl-font-m) !important;
   font-weight: normal !important;
   text-align: left !important;
@@ -358,6 +402,7 @@ html.pclApp .appInput .sapMInputBaseIcon {
   width: var(--pcl-touch);
   min-width: var(--pcl-touch);
   line-height: var(--pcl-touch);
+  border-radius: var(--pcl-radius-field);
 }
 
 html.pclApp .appInput.sapMInputBaseHasEndIcons .sapMInputBaseInner {
@@ -365,24 +410,12 @@ html.pclApp .appInput.sapMInputBaseHasEndIcons .sapMInputBaseInner {
 }
 
 /* Поля в ячейках таблиц — та же высота строки касания */
-html.pclApp .appCellComboBox.sapMInputBase,
 html.pclApp .appCellInputField.sapMInputBase {
   height: var(--pcl-touch) !important;
 }
 
-html.pclApp .appCellComboBox .sapMInputBaseContentWrapper,
 html.pclApp .appCellInputField .sapMInputBaseContentWrapper {
   height: 100% !important;
-}
-
-html.pclApp .appCellComboBox .sapMInputBaseIcon {
-  width: var(--pcl-touch);
-  min-width: var(--pcl-touch);
-  line-height: var(--pcl-touch);
-}
-
-html.pclApp .appCellComboBox.sapMInputBaseHasEndIcons .sapMInputBaseInner {
-  width: calc(100% - var(--pcl-touch));
 }
 
 /* TextArea (rows=1, growing): зеркало задаёт высоту — отступы у обоих одинаковые */
@@ -397,9 +430,9 @@ html.pclApp .appCellTextArea .sapMTextAreaMirror {
 }
 
 html.pclLight .appInput .sapMInputBaseContentWrapper,
-html.pclLight .appCellComboBox .sapMInputBaseContentWrapper,
 html.pclLight .appCellInputField .sapMInputBaseContentWrapper,
-html.pclLight .appCellTextArea .sapMInputBaseContentWrapper {
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper {
   --pcl-field-line-color: var(--pcl-field-line);
   --pcl-field-line-width: .0625rem;
   --pcl-field-shadow-now: var(--pcl-field-shadow);
@@ -414,9 +447,9 @@ html.pclLight .appCellTextArea .sapMInputBaseContentWrapper {
 }
 
 html.pclLight .appInput .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
-html.pclLight .appCellComboBox .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
 html.pclLight .appCellInputField .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
-html.pclLight .appCellTextArea .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover {
+html.pclLight .appCellTextArea .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseContentWrapper:not(.sapMInputBaseDisabledWrapper):not(.sapMInputBaseReadonlyWrapper):hover {
   --pcl-field-line-color: var(--pcl-field-hover-line);
   --pcl-field-shadow-now: var(--pcl-field-hover-shadow);
 }
@@ -445,9 +478,9 @@ html.pclLight .sapMInputBaseContentWrapper.sapMInputBaseContentWrapperSuccess {
 /* Фокус: тема ставит sapMFocus на корень поля (у TextArea — контур на
    textarea); переносим контур на рамку поля, тем же цветом для всех. */
 html.pclLight .appInput.sapMFocus .sapMInputBaseContentWrapper,
-html.pclLight .appCellComboBox.sapMFocus .sapMInputBaseContentWrapper,
 html.pclLight .appCellInputField.sapMFocus .sapMInputBaseContentWrapper,
-html.pclLight .appCellTextArea.sapMFocus .sapMInputBaseContentWrapper {
+html.pclLight .appCellTextArea.sapMFocus .sapMInputBaseContentWrapper,
+html.pclLight .sapMSuggestionsPopover .sapMFocus .sapMInputBaseContentWrapper {
   outline: .125rem solid var(--pcl-focus) !important;
   outline-offset: -.125rem !important;
 }
@@ -457,33 +490,130 @@ html.pclLight .appCellTextArea.sapMFocus .sapMTextAreaInner {
 }
 
 html.pclLight .appInput .sapMInputBaseInner,
-html.pclLight .appCellComboBox .sapMInputBaseInner,
 html.pclLight .appCellInputField .sapMInputBaseInner,
-html.pclLight .appCellTextArea .sapMTextAreaInner {
+html.pclLight .appCellTextArea .sapMTextAreaInner,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseInner {
   color: var(--pcl-text);
 }
 
 html.pclLight .appInput .sapMInputBaseInner::placeholder,
-html.pclLight .appCellComboBox .sapMInputBaseInner::placeholder,
 html.pclLight .appCellInputField .sapMInputBaseInner::placeholder,
-html.pclLight .appCellTextArea .sapMTextAreaInner::placeholder {
+html.pclLight .appCellTextArea .sapMTextAreaInner::placeholder,
+html.pclLight .sapMSuggestionsPopover .sapMInputBaseInner::placeholder {
   color: var(--pcl-label);
 }
 
-html.pclLight .appInput .sapMInputBaseIcon,
-html.pclLight .appCellComboBox .sapMInputBaseIcon {
-  color: var(--pcl-link) !important;
+/* Иконки полей — sapContent_IconColor, как в Horizon (синий #0854a0 был цветом
+   иконок fiori_3). Hover — кольцо поля; открытый пикер (IconPressed) и нажатие —
+   белый фон и синяя иконка. У темы для IconPressed свой цвет на ::before (#fff),
+   поэтому цвет задаём и там. */
+html.pclLight .appInput .sapMInputBaseIcon {
+  color: var(--pcl-icon) !important;
 }
 
-html.pclLight .appInput .sapMInputBaseIcon:hover,
-html.pclLight .appCellComboBox .sapMInputBaseIcon:hover {
-  background: var(--pcl-hover) !important;
+html.pclLight .appInput .sapMInputBaseIcon:hover {
+  background: transparent !important;
+  box-shadow: var(--pcl-field-hover-shadow);
 }
 
 html.pclLight .appInput.sapMInputBaseIconPressed .sapMInputBaseIcon,
-html.pclLight .appCellComboBox.sapMInputBaseIconPressed .sapMInputBaseIcon {
-  background: var(--pcl-link) !important;
-  color: var(--pcl-surface) !important;
+html.pclLight .appInput .sapMInputBaseIcon:active {
+  background: var(--pcl-surface) !important;
+  box-shadow: var(--pcl-field-hover-shadow);
+  color: var(--pcl-link) !important;
+}
+
+html.pclLight .appInput.sapMInputBaseIconPressed .sapMInputBaseIcon::before {
+  color: var(--pcl-link) !important;
+}
+
+/* ===== Select: уровень КПР и Результат строки ===== */
+/* [Fix UX-12] Это sap.m.Select (.sapMSlt, а не .sapMInputBase) — тот же
+   Horizon-вид поля, что выше: линия снизу, кольцо, радиус, 44px. Рамку темы
+   (1px, в состоянии 2px) заменяет фон-линия, поэтому высота строки подписи
+   одна для всех состояний. */
+html.pclApp .appInput.sapMSlt,
+html.pclApp .appCellSelect.sapMSlt {
+  height: var(--pcl-touch);
+  margin: 0;
+}
+
+html.pclApp .appInput.sapMSlt > .sapMSltLabel,
+html.pclApp .appCellSelect.sapMSlt > .sapMSltLabel,
+html.pclApp .appInput.sapMSlt > .sapMSltArrow,
+html.pclApp .appCellSelect.sapMSlt > .sapMSltArrow {
+  line-height: var(--pcl-touch);
+}
+
+html.pclApp .appInput.sapMSlt > .sapMSltArrow,
+html.pclApp .appCellSelect.sapMSlt > .sapMSltArrow {
+  width: var(--pcl-touch);
+  border-radius: var(--pcl-radius-field);
+}
+
+html.pclLight .appInput.sapMSlt,
+html.pclLight .appCellSelect.sapMSlt {
+  --pcl-field-line-color: var(--pcl-field-line);
+  --pcl-field-line-width: .0625rem;
+  --pcl-field-shadow-now: var(--pcl-field-shadow);
+  border: none !important;
+  border-radius: var(--pcl-radius-field) !important;
+  background-color: var(--pcl-surface) !important;
+  background-image: linear-gradient(0deg, var(--pcl-field-line-color), var(--pcl-field-line-color)) !important;
+  background-position: 0 100% !important;
+  background-size: 100% var(--pcl-field-line-width) !important;
+  background-repeat: no-repeat !important;
+  box-shadow: var(--pcl-field-shadow-now) !important;
+}
+
+html.pclLight .appInput.sapMSltHoverable:hover,
+html.pclLight .appCellSelect.sapMSltHoverable:hover,
+html.pclLight .appInput.sapMSlt.sapMSltPressed,
+html.pclLight .appCellSelect.sapMSlt.sapMSltPressed {
+  --pcl-field-line-color: var(--pcl-field-hover-line);
+  --pcl-field-shadow-now: var(--pcl-field-hover-shadow);
+}
+
+html.pclLight .appInput.sapMSlt.sapMSltError,
+html.pclLight .appCellSelect.sapMSlt.sapMSltError {
+  --pcl-field-line-color: var(--pcl-field-error-line);
+  --pcl-field-line-width: .125rem;
+  --pcl-field-shadow-now: var(--pcl-field-error-shadow);
+  background-color: var(--pcl-field-error-bg) !important;
+}
+
+html.pclLight .appInput.sapMSlt.sapMSltWarning,
+html.pclLight .appCellSelect.sapMSlt.sapMSltWarning {
+  --pcl-field-line-color: var(--pcl-field-warning-line);
+  --pcl-field-line-width: .125rem;
+  --pcl-field-shadow-now: var(--pcl-field-warning-shadow);
+  background-color: var(--pcl-field-warning-bg) !important;
+}
+
+html.pclLight .appInput.sapMSlt > .sapMSltLabel,
+html.pclLight .appCellSelect.sapMSlt > .sapMSltLabel {
+  color: var(--pcl-text);
+}
+
+html.pclLight .appInput.sapMSlt > .sapMSltArrow,
+html.pclLight .appCellSelect.sapMSlt > .sapMSltArrow {
+  background: transparent !important;
+  color: var(--pcl-icon) !important;
+}
+
+html.pclLight .appInput.sapMSltPressed > .sapMSltArrow,
+html.pclLight .appCellSelect.sapMSltPressed > .sapMSltArrow,
+html.pclLight .appInput.sapMSltPressed > .sapMSltArrow::before,
+html.pclLight .appCellSelect.sapMSltPressed > .sapMSltArrow::before {
+  color: var(--pcl-link) !important;
+}
+
+/* Фокус: вместо пунктира темы — контур поля, как у остальных полей */
+html.sap-desktop.pclLight .appInput.sapMSlt.sapMSltFocused:not(.sapMSltExpanded):not(.sapMSltDisabled)::before,
+html.sap-desktop.pclLight .appCellSelect.sapMSlt.sapMSltFocused:not(.sapMSltExpanded):not(.sapMSltDisabled)::before {
+  outline: .125rem solid var(--pcl-focus);
+  outline-offset: -.125rem;
+  border-radius: var(--pcl-radius-field);
 }
 
 /* ===== Кнопки (Horizon) ===== */
@@ -623,12 +753,17 @@ html.pclApp .appWizardNextBtn .sapMBtnInner.sapMBtnText {
    60px footer перекрывал 44px, которые Page оставляет под него, — отсюда и
    были 6rem "запаса" внизу шагов. position:sticky внутри абсолютного footer
    Page ничего не делал — убран. */
-/* Справа на .25rem меньше: у детей Toolbar свой margin .25rem, а последний
-   видимый ребёнок — не :last-child (за ним скрытый placeholder кнопки). */
 html.pclApp .appFooter.sapMTB {
   box-sizing: border-box;
   height: var(--pcl-footer-height) !important;
-  padding: 0 calc(var(--pcl-gutter) - .25rem) 0 var(--pcl-gutter) !important;
+  padding: 0 var(--pcl-gutter) !important;
+}
+
+/* Поля кнопок задаём сами: у Toolbar темы последний ребёнок без margin-right,
+   а "Далее" — не :last-child (за ним скрытый placeholder "Отправить"), и
+   правый край кнопок прыгал на 4px между шагами. */
+html.pclApp .appFooter.sapMTB > .sapMBtn.sapMBarChild {
+  margin: 0 0 0 .5rem;
 }
 
 html.pclLight .appFooter.sapMTB {
@@ -645,6 +780,12 @@ html.pclApp .appFooterStatus .sapMObjStatusText {
 html.pclLight .appFooterStatus .sapMObjStatusText,
 html.pclLight .appFooterStatus .sapMObjStatusIcon {
   color: var(--pcl-label) !important;
+}
+
+/* Пока счётчик строк не посчитан (пустой text), ObjectStatus рисует одинокую
+   иконку-список — прячем её (1.71 помечает этот случай sapMObjStatusIconOnly). */
+html.pclApp .appFooterStatus .sapMObjStatusIconOnly {
+  display: none;
 }
 
 @media (max-width: 599px) {
@@ -693,6 +834,34 @@ html.pclLight .appCard .sapMPanelContent {
   border-bottom: none !important;
 }
 
+/* [Fix UX-11] Списки проверок/барьеров в сводке — той же карточкой, что и Panel */
+html.pclApp .appSummarySection {
+  gap: .5rem;
+}
+
+html.pclApp .appSummarySectionTitle.sapMTitle {
+  font-size: var(--pcl-font-l) !important;
+  font-weight: bold !important;
+}
+
+html.pclApp .appSummaryList.sapMList {
+  overflow: hidden;
+}
+
+html.pclLight .appSummarySectionTitle.sapMTitle {
+  color: var(--pcl-text) !important;
+}
+
+html.pclLight .appSummaryList.sapMList {
+  background: var(--pcl-surface) !important;
+  border-radius: var(--pcl-radius-container);
+  box-shadow: var(--pcl-shadow-0);
+}
+
+html.pclLight .appSummaryList .sapMLIB {
+  background: transparent !important;
+}
+
 /* ===== Таблицы Проверок/Барьеров ===== */
 /* Корень sap.m.Table 1.71 — div.sapMListTblCnt с нашим классом (не .sapMListTable). */
 html.pclApp .appTable.sapMList {
@@ -715,12 +884,14 @@ html.pclApp .appTable .sapMListTblHeaderCell .sapMText {
   letter-spacing: normal !important;
 }
 
+/* Все th строки заголовка, включая служебные (highlight, колонка удаления):
+   иначе над кнопкой удаления оставался серый фон темы без линии. */
 html.pclLight .appTable .sapMListTblHeader,
-html.pclLight .appTable .sapMListTblHeaderCell {
+html.pclLight .appTable .sapMListTblHeader > th {
   background: var(--pcl-surface) !important;
 }
 
-html.pclLight .appTable .sapMListTblHeaderCell {
+html.pclLight .appTable .sapMListTblHeader > th {
   border-bottom: .0625rem solid var(--pcl-border-list-header) !important;
 }
 
@@ -808,7 +979,7 @@ html.pclApp .appCellCodeVhIcon.sapUiIcon {
 }
 
 html.pclLight .appCellCodeVhIcon.sapUiIcon {
-  color: var(--pcl-link) !important;
+  color: var(--pcl-icon) !important;
 }
 
 /* ===== Message strip ===== */
@@ -879,15 +1050,96 @@ html.pclLight .appVhSelectDialog.sapMDialog:not(.sapMDialogStretched) {
   box-shadow: var(--pcl-shadow-3) !important;
 }
 
-html.pclApp .appDialog .sapMDialogTitle,
-html.pclApp .appVhSelectDialog .sapMDialogTitle {
+/* Заголовок — Title в шапке; у SelectDialog 1.71 он без класса sapMDialogTitle.
+   Полноэкранный пикер ComboBox/подсказок на телефоне — тоже диалог. */
+html.pclApp .appDialog .sapMDialogTitleGroup .sapMTitle,
+html.pclApp .appVhSelectDialog .sapMDialogTitleGroup .sapMTitle,
+html.pclApp .sapMSuggestionsPopover .sapMDialogTitleGroup .sapMTitle {
   font-size: var(--pcl-font-l) !important;
   font-weight: bold !important;
 }
 
-html.pclLight .appDialog .sapMDialogTitle,
-html.pclLight .appVhSelectDialog .sapMDialogTitle {
+/* Как и у страницы — по началу строки (Horizon) */
+html.pclApp .appDialog .sapMDialogTitleGroup .sapMBarPH,
+html.pclApp .appVhSelectDialog .sapMDialogTitleGroup .sapMBarPH,
+html.pclApp .sapMSuggestionsPopover .sapMDialogTitleGroup .sapMBarPH {
+  text-align: left;
+  padding-left: 1rem;
+}
+
+html.pclLight .appDialog .sapMDialogTitleGroup .sapMTitle,
+html.pclLight .appVhSelectDialog .sapMDialogTitleGroup .sapMTitle,
+html.pclLight .sapMSuggestionsPopover .sapMDialogTitleGroup .sapMTitle {
   color: var(--pcl-text) !important;
+}
+
+html.pclLight .appDialog .sapMDialogTitleGroup .sapMIBar,
+html.pclLight .appVhSelectDialog .sapMDialogTitleGroup .sapMIBar,
+html.pclLight .sapMSuggestionsPopover .sapMDialogTitleGroup .sapMIBar {
+  background: var(--pcl-surface) !important;
+  box-shadow: var(--pcl-header-shadow) !important;
+}
+
+html.pclLight .sapMSuggestionsPopover .sapMDialogTitleGroup .sapMBtnIcon {
+  color: var(--pcl-link) !important;
+}
+
+/* SearchField (оба диалога): своя разметка — форма .sapMSFF и кнопки .sapMSFB,
+   правила .sapMInputBase к нему не относятся (была рамка fiori_3 и иконки
+   #0854a0). Horizon-поле через рамку 1px, чтобы не сдвигать абсолютные кнопки. */
+html.pclLight .appDialog .sapMSFF,
+html.pclLight .appVhSelectDialog .sapMSFF {
+  border-color: var(--pcl-field-ring) !important;
+  border-bottom-color: var(--pcl-field-line) !important;
+  border-radius: var(--pcl-radius-field) !important;
+  background: var(--pcl-surface) !important;
+}
+
+html.pclLight .appDialog .sapMSF:not(.sapMSFDisabled) > .sapMSFF:hover,
+html.pclLight .appVhSelectDialog .sapMSF:not(.sapMSFDisabled) > .sapMSFF:hover {
+  border-color: var(--pcl-field-hover-ring) !important;
+  border-bottom-color: var(--pcl-field-hover-line) !important;
+}
+
+html.sap-desktop.pclLight .appDialog .sapMFocus > .sapMSFF::before,
+html.sap-desktop.pclLight .appVhSelectDialog .sapMFocus > .sapMSFF::before {
+  top: -.0625rem;
+  right: -.0625rem;
+  bottom: -.0625rem;
+  left: -.0625rem;
+  border: .125rem solid var(--pcl-focus);
+  border-radius: var(--pcl-radius-field);
+}
+
+html.pclLight .appDialog .sapMSFI,
+html.pclLight .appVhSelectDialog .sapMSFI {
+  color: var(--pcl-text);
+}
+
+html.pclLight .appDialog .sapMSFI::placeholder,
+html.pclLight .appVhSelectDialog .sapMSFI::placeholder {
+  color: var(--pcl-label);
+}
+
+html.pclLight .appDialog .sapMSFF > .sapMSFB,
+html.pclLight .appVhSelectDialog .sapMSFF > .sapMSFB {
+  border-radius: var(--pcl-radius-field);
+  color: var(--pcl-icon) !important;
+}
+
+html.pclLight .appDialog .sapMSFF > .sapMSFB:hover,
+html.pclLight .appVhSelectDialog .sapMSFF > .sapMSFB:hover {
+  background-color: transparent !important;
+  box-shadow: var(--pcl-field-hover-shadow);
+}
+
+html.pclLight .appDialog .sapMSFF > .sapMSFB:active,
+html.pclLight .appDialog .sapMSFF > .sapMSFB.sapMSFBA,
+html.pclLight .appVhSelectDialog .sapMSFF > .sapMSFB:active,
+html.pclLight .appVhSelectDialog .sapMSFF > .sapMSFB.sapMSFBA {
+  background-color: var(--pcl-surface) !important;
+  box-shadow: var(--pcl-field-hover-shadow);
+  color: var(--pcl-link) !important;
 }
 
 html.pclApp .appDialog:not(.sapMDialogStretched) .sapMDialogScroll {

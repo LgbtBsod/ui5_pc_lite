@@ -56,6 +56,8 @@ sap.ui.define([
       this._oDialogs = {};
       this._bDestroyed = false;
       this._bShellDirty = false;
+      // Последний принятый уровень КПР (RowsAndAutoFill.js#onPkLevelChange).
+      this._sPrevPkLevel = "";
       this._syncBrowserTabTitle();
       this._initShellIntegration();
       this._loadDictionaries();
@@ -157,6 +159,8 @@ sap.ui.define([
       // ShellUIService) проверяют этот флаг и не трогают уничтоженный View.
       this._bDestroyed = true;
       clearTimeout(this._iStepTransitionTimer);
+      // [Fix PF-05] Отложенный поиск в диалоге местоположений (LocationPicker.js).
+      this._clearLocSearchTimer();
       // [Fix FN-12, FLP] Dirty-флаг Container глобален на всю FLP-сессию —
       // снимаем, чтобы не достался следующему приложению. Back-навигацию
       // шелл сбрасывает сам при смене приложения (вызов от уже неактивного
@@ -296,7 +300,13 @@ sap.ui.define([
         const fnOriginal = oM.setProperty.bind(oM);
         oM.__pcLiteOrigSetProperty = fnOriginal;
         oM.setProperty = (...args) => {
+          // [Fix FN-10/WZ-10/UX-08] Та же точка перехвата снимает подсветку
+          // ошибки, исправленной этой записью. Путь строк таблицы относительный
+          // (двусторонний биндинг ячейки) — резолвим по контексту (args[2]).
+          const sAbsPath = oM.resolve(args[0], args[2]);
+          const vOld = sAbsPath === "/items" ? oM.getProperty(sAbsPath) : undefined;
           const bResult = fnOriginal(...args);
+          FormValidator.clearMessagesForWrite(oM, sAbsPath, args[1], vOld);
           this._setShellDirty(true);
           return bResult;
         };

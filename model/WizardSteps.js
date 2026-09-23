@@ -37,9 +37,15 @@ sap.ui.define([], () => {
     return STEP_PAGE_IDS.indexOf(sPageId) + 1;
   }
 
+  // [Fix WZ-05] i18n-ключ заголовка шага по номеру (для текста "откроется шаг «…»").
+  function titleKeyOf(iStep) {
+    return STEP_TITLE_KEYS[STEP_PAGE_IDS[iStep - 1]];
+  }
+
   return {
     STEP_PAGE_IDS,
     STEP_TITLE_KEYS,
+    titleKeyOf,
     TOTAL_STEPS: STEP_PAGE_IDS.length,
     WHEN: stepOf("pageWhen"),
     PEOPLE: stepOf("pagePeople"),

@@ -3,9 +3,10 @@
   xmlns:core="sap.ui.core"
   xmlns:data="http://schemas.sap.com/sapui5/extension/sap.ui.core.CustomData/1">
 
-  <!-- stretch на телефоне выставляется программно (LocationPicker.js#onLocationValueHelp). -->
+  <!-- stretch на телефоне выставляется программно (LocationPicker.js#onLocationValueHelp).
+       [Fix VH-09] Без resizable: ручка обрезалась скруглённым углом, на тач-устройствах не нужна. -->
   <Dialog id="locationDialog" title="{i18n>vhLocationTitle}" stretch="false"
-          contentWidth="480px" resizable="true" class="appDialog">
+          contentWidth="480px" class="appDialog">
     <content>
       <VBox class="sapUiSmallMargin">
 

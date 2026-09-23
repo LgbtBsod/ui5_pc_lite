@@ -16,7 +16,7 @@ sap.ui.define([], () => {
   // руками и актуализировать здесь хэш коммита redux, с которым сверялись.
   // [Fix SSOT — предупреждение, аудит] Тот же порог ("КПР-2 и выше") ЕЩЁ РАЗ
   // закодирован — на этот раз прозой, не числом — в трёх i18n-ключах всех 3
-  // локалей: hintBarriers ("Барьеры отображаются при Уровне КПР-2 и выше."),
+  // локалей: hintBarriers ("Барьеры отображаются при уровне КПР-2 и выше."),
   // hintPkIi ("Уровень КПР-2 и выше: раздел «Барьеры» активен.") и hintPkI
   // ("Уровень КПР-0/1: раздел «Барьеры» скрыт.") — см. RowsAndAutoFill.js#
   // onPkLevelChange, где именно эти ключи читаются как MessageToast. В
@@ -62,6 +62,28 @@ sap.ui.define([], () => {
      */
     static isUnsatisfactoryResult(sResultCode) {
       return sResultCode === UNSATISFACTORY_RESULT_CODE;
+    }
+
+    /**
+     * [Fix UX-03/FN-05] Ввёл ли пользователь в строку что-то кроме кода:
+     * комментарий, результат или поля несоответствия. Код сам по себе не в
+     * счёт — авто-строки по КПР несут только его.
+     * @returns {boolean}
+     */
+    static hasRowUserData(oRow) {
+      if (!oRow) { return false; }
+      return !!((oRow.Comment || "").trim() || (oRow.Status || "") !== "" ||
+        (oRow.NonConformityDescription || "").trim() || (oRow.NonConformityLocation || "").trim());
+    }
+
+    /**
+     * [Fix FN-05/UX-09] Единственный подсчёт строк, которые реально уйдут в
+     * payload (с кодом, см. DeepEntityFacade._collectRows) — для footer и сводки.
+     * @param {object[]} aRows @param {string} sCodeProp EntityConfig.TYPES.*.codeProp
+     * @returns {number}
+     */
+    static countCodedRows(aRows, sCodeProp) {
+      return (aRows || []).filter((r) => r && r[sCodeProp]).length;
     }
   }
 

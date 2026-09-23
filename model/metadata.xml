@@ -281,7 +281,7 @@
         <EntitySet Name="Barriers"    EntityType="ZCheckService.Barrier"
                    sap:creatable="false" sap:updatable="false" sap:deletable="false"
                    sap:countable="true"/>
-        <EntitySet Name="Persons"           EntityType="ZCheckService.Person"           sap:countable="true"/>
+        <EntitySet Name="Persons"           EntityType="ZCheckService.Person"           sap:countable="true" sap:searchable="true"/>
         <EntitySet Name="LocationHierarchy" EntityType="ZCheckService.LocationHierarchy" sap:countable="true"/>
         <EntitySet Name="BarrierTypes"      EntityType="ZCheckService.BarrierType"      sap:countable="true"/>
         <EntitySet Name="CheckTypes"        EntityType="ZCheckService.CheckType"        sap:countable="true"/>

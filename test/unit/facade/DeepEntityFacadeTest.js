@@ -49,9 +49,9 @@ sap.ui.define([
     const oForm = makeFormModel({
       PkLevel: "2",
       InspectedPernr: "00000001",
-      InspectedFullname: "Иванов Иван (00000001)",
+      InspectedFullname: "Иванов Иван",
       InspectorPernr: "00000003",
-      InspectorFullname: "Петров Пётр (00000003)",
+      InspectorFullname: "Петров Пётр",
       CheckDate: "2026-09-07",
       CheckTime: "10:00:00",
       TimeZone: "UTC+4",
@@ -73,8 +73,8 @@ sap.ui.define([
     // ловит, если опечатка когда-нибудь вернётся.
     assert.strictEqual(oPayload.ObservedPernr, "00000001", "ObservedPernr (не ObservedPerner) = InspectedPernr");
     assert.strictEqual(oPayload.ObserverPernr, "00000003", "ObserverPernr (не ObserverPerner) = InspectorPernr");
-    assert.strictEqual(oPayload.ObservedFullname, "Иванов Иван (00000001)");
-    assert.strictEqual(oPayload.ObserverFullname, "Петров Пётр (00000003)");
+    assert.strictEqual(oPayload.ObservedFullname, "Иванов Иван", "Fullname — чистое ФИО (FN-06)");
+    assert.strictEqual(oPayload.ObserverFullname, "Петров Пётр");
     assert.strictEqual(oPayload.TimezoneText, "Ереван (UTC+4)");
     assert.strictEqual(oPayload.LocationKey, "loc-1");
     assert.strictEqual(oPayload.LocationName, "Корпус А");
@@ -128,6 +128,21 @@ sap.ui.define([
     assert.strictEqual(oRow.Result, "");
     assert.strictEqual(oRow.NonConformityDescription, "");
     assert.strictEqual(oRow.NonConformityLocation, "");
+  });
+
+  QUnit.test("поля несоответствия уходят только при «Неудовлетворительно» (UX-09)", (assert) => {
+    const aChecks = [
+      // Неуд -> Уд: поля заблокированы, но текст остался в модели
+      { CheckCode: "DOCUMENT_REVIEW", Status: "X", NonConformityDescription: "d", NonConformityLocation: "l" },
+      { CheckCode: "DOCUMENT_REVIEW", Status: "", NonConformityDescription: "d2", NonConformityLocation: "l2" }
+    ];
+    const oPayload = DeepEntityFacade.build(
+      makeFormModel({}), makeItemsModel(aChecks), makeItemsModel([]), makeDictModel(oDictIndex)
+    );
+    oPayload.to_Checks.results.forEach((oRow) => {
+      assert.strictEqual(oRow.NonConformityDescription, "", `Result "${oRow.Result}": описание не отправляется`);
+      assert.strictEqual(oRow.NonConformityLocation, "", `Result "${oRow.Result}": место не отправляется`);
+    });
   });
 
   return {};

@@ -1,8 +1,9 @@
 sap.ui.define([
   "sap/ui/core/util/MockServer",
   "sap/base/Log",
-  "sap/pc_lite/lite/model/BackendConfig"
-], (MockServer, Log, BackendConfig) => {
+  "sap/pc_lite/lite/model/BackendConfig",
+  "sap/pc_lite/lite/util/SearchText"
+], (MockServer, Log, BackendConfig, SearchText) => {
   "use strict";
 
   // Fallback — только если manifest.json не удалось прочитать (см. _readRootUri).
@@ -50,6 +51,16 @@ sap.ui.define([
         // корневые поля и сам факт успешного ответа.
         oMockServer.attachAfter("POST",
           (oEvent) => MockServerBootstrap._persistDeepChildren(oEvent, sCheckRoots), sCheckRoots);
+
+        // [Fix FN-07] Эмуляция SADL-поиска Persons (ФИО/табельный, любой порядок
+        // слов): штатный search MockServer 1.71 = startswith(Pernr), имена не
+        // находились. Переопределён приватный метод — допустимо только потому,
+        // что UI5 зафиксирован на 1.71.84, а файл — dev-only.
+        const sPersons = BackendConfig.ENTITY_SETS.PERSONS;
+        const fnOrigSearch = oMockServer._recursiveOdataQuerySearch.bind(oMockServer);
+        oMockServer._recursiveOdataQuerySearch = (aData, sQuery, sFocus, sEntitySet) => (sEntitySet === sPersons
+          ? aData.filter((r) => SearchText.matches(`${r.Fio || ""} ${r.Pernr || ""}`, sQuery))
+          : fnOrigSearch(aData, sQuery, sFocus, sEntitySet));
 
         oMockServer.start();
         Log.info(`Standard MockServer started for ${sRootUri} (standalone/dev mode)`);

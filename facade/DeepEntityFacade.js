@@ -1,8 +1,9 @@
 sap.ui.define([
   "sap/pc_lite/lite/model/EntityConfig",
   "sap/pc_lite/lite/util/ODataFormat",
-  "sap/pc_lite/lite/facade/DictionaryFacade"
-], (EntityConfig, ODataFormat, DictionaryFacade) => {
+  "sap/pc_lite/lite/facade/DictionaryFacade",
+  "sap/pc_lite/lite/model/BusinessRules"
+], (EntityConfig, ODataFormat, DictionaryFacade, BusinessRules) => {
   "use strict";
 
   /** Builds the CheckRoots deep-create payload (CHECKROOTS_CREATE_DEEP_ENTITY contract in redux). */
@@ -59,22 +60,25 @@ sap.ui.define([
       const aItems = oModel.getProperty("/items") || [];
       return aItems
         .filter((r) => r[oCfg.codeProp])
-        .map((r) => ({
-          Code: r[oCfg.codeProp],
-          Text: DictionaryFacade.resolveText(oDictModel, oCfg.dictType, r[oCfg.codeProp]),
-          Comment: r.Comment || "",
-          // [Fix, аудит] Убран мёртвый `|| r.Result` — ModelsInit.emptyRow
-          // создаёт только `Status`, и ни один биндинг во фрагментах не
-          // пишет `.Result` на строку; второй вариант никогда не был
-          // реальным входом, только неочевидным пережитком именования.
-          Result: r.Status || "",
-          // [Поля несоответствия, по запросу] Отправляются всегда (как
-          // Comment) — если результат не "Неудовлетворительно", поля были
-          // недоступны для ввода на клиенте (см. ChecksTable/
-          // BarriersTable.fragment.xml) и здесь просто пустые строки.
-          NonConformityDescription: r.NonConformityDescription || "",
-          NonConformityLocation: r.NonConformityLocation || ""
-        }));
+        .map((r) => {
+          const bUnsat = BusinessRules.isUnsatisfactoryResult(r.Status);
+          return {
+            Code: r[oCfg.codeProp],
+            Text: DictionaryFacade.resolveText(oDictModel, oCfg.dictType, r[oCfg.codeProp]),
+            Comment: r.Comment || "",
+            // [Fix, аудит] Убран мёртвый `|| r.Result` — ModelsInit.emptyRow
+            // создаёт только `Status`, и ни один биндинг во фрагментах не
+            // пишет `.Result` на строку; второй вариант никогда не был
+            // реальным входом, только неочевидным пережитком именования.
+            Result: r.Status || "",
+            // [Fix UX-09] Поля несоответствия — только при "Неудовлетворительно".
+            // После переключения Неуд -> Уд поля лишь блокируются (текст не
+            // стирается, чтобы не терять его при случайном тапе), но уходить
+            // с удовлетворительным результатом не должны.
+            NonConformityDescription: bUnsat ? (r.NonConformityDescription || "") : "",
+            NonConformityLocation: bUnsat ? (r.NonConformityLocation || "") : ""
+          };
+        });
     }
 
   }

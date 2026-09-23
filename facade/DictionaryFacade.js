@@ -43,6 +43,26 @@ sap.ui.define([
     });
   }
 
+  // [Fix UX-13] metadataLoaded() ODataModel v2 (1.71) при сбое $metadata не
+  // завершается никогда — BusyDialog висел вечно, до "Повторить" не доходило.
+  // Ждём и metadataFailed; повтор после сбоя — refreshMetadata() (его промис
+  // сам отклоняется при новой ошибке).
+  function whenMetadataReady (oModel) {
+    if (oModel.isMetadataLoadingFailed()) {
+      return Promise.resolve(oModel.refreshMetadata()).then(() => undefined, (oErr) => {
+        throw new Error((oErr && oErr.message) || "metadata failed");
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const fnFailed = (oEvent) => reject(new Error(oEvent.getParameter("message") || "metadata failed"));
+      oModel.attachEventOnce("metadataFailed", fnFailed);
+      oModel.metadataLoaded().then(() => {
+        oModel.detachEvent("metadataFailed", fnFailed);
+        resolve();
+      });
+    });
+  }
+
   /** Loads all reference-data dictionaries and the location hierarchy in one batch, once. */
   class DictionaryFacade {
     /**
@@ -86,7 +106,9 @@ sap.ui.define([
       // LocationHierarchy). Массив запросов — теперь {key, promise} пары,
       // ключ читается по имени через oByKey ниже: порядок объявления запроса
       // в этом списке больше ни на что не влияет.
-      const aQueries = [
+      // [Fix UX-13] Запросы — только после готовых $metadata (при сбое их
+      // read() повисли бы навсегда, а повтор создал бы дубликаты).
+      const fnQueries = () => [
         { key: "CHECKS", promise: readEntitySet(oModel, `/${ES.CHECK_TYPES}`, { "$select": "CheckTypeCode,CheckTypeText,Category,PkLevels" }) },
         { key: "BARRIERS", promise: readEntitySet(oModel, `/${ES.BARRIER_TYPES}`, { "$select": "BarrierTypeCode,BarrierTypeText,Category,PkLevels" }) },
         { key: "STATUS", promise: readEntitySet(oModel, `/${ES.CHECK_RESULTS}`, { "$select": "ResultCode,ResultText" }) },
@@ -101,7 +123,11 @@ sap.ui.define([
         { key: "AUTO_ROW_RULES", promise: readEntitySet(oModel, `/${ES.AUTO_ROW_RULES}`, { "$select": "PkLevel,Type,Code" }) }
       ];
 
-      return oModel.metadataLoaded().then(() => Promise.all(aQueries.map((q) => q.promise))).then((aResolved) => {
+      let aQueries = [];
+      return whenMetadataReady(oModel).then(() => {
+        aQueries = fnQueries();
+        return Promise.all(aQueries.map((q) => q.promise));
+      }).then((aResolved) => {
         const oByKey = {};
         aQueries.forEach((q, i) => { oByKey[q.key] = aResolved[i]; });
 
@@ -128,7 +154,7 @@ sap.ui.define([
     static loadLocations(oModel, oLocModel, sCheckDate) {
       const iLocSeq = nextLocSeq(oLocModel);
       const oLocFilter = DictionaryFacade._buildLocationAsOfFilter(sCheckDate);
-      return oModel.metadataLoaded()
+      return whenMetadataReady(oModel)
         .then(() => readEntitySet(oModel, `/${ES.LOCATION_HIERARCHY}`, { "$select": LOCATION_SELECT }, oLocFilter ? [oLocFilter] : undefined))
         .then((aRows) => {
           if (iLocSeq !== oLocSeqByModel.get(oLocModel)) { return false; }

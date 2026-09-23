@@ -32,8 +32,9 @@
                     class="appInput"/>
 
         <Label text="{i18n>lblCheckTime}" labelFor="checkTime" class="appLabel"/>
+        <!-- [Fix UX-11] displayFormat ЧЧ:ММ — без лишнего колеса секунд в пикере телефона. -->
         <TimePicker id="checkTime" value="{formModel>/CheckTime}"
-                    valueFormat="{constraintsModel>/TimeValueFormat}" displayFormat="HH:mm:ss" width="100%"
+                    valueFormat="{constraintsModel>/TimeValueFormat}" displayFormat="{constraintsModel>/DisplayTimeFormat}" width="100%"
                     change="onCheckTimeChange"
                     class="appInput"/>
 

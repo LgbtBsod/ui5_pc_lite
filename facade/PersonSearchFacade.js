@@ -163,7 +163,7 @@ sap.ui.define([
 
     // Второй проход: нормализованное совпадение всех слов запроса, затем
     // ранжирование (точное -> начало -> начала слов -> подстрока) и потолок.
-    // Fio -> Fullname маппится здесь, на границе (BaseInfo/PersonSearch ждут Fullname).
+    // Fio -> Fullname маппится здесь, на границе (StepPeople.fragment.xml/PersonSearch.js ждут Fullname).
     static _finish(aRows, sNorm) {
       return (aRows || [])
         .filter((r) => SearchText.matches(r.Fio, sNorm))

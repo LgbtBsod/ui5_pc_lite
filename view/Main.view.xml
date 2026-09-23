@@ -38,7 +38,11 @@
           <Page id="pageWhen" showHeader="false" showFooter="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent">
-                <Text text="{i18n>wizStepWhen}" class="appStepHeading"/>
+                <!-- [Fix WZ-11/UX-16] Заголовок шага — h2 (Title level="H2"): на него
+                     переводится фокус при смене шага (WizardNavigation.js#_focusStepHeading),
+                     скринридер объявляет "заголовок", навигация по заголовкам находит шаги.
+                     wrapping — длинные названия не обрезаются на телефоне. -->
+                <Title text="{i18n>wizStepWhen}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepWhenWhere" type="XML"/>
               </VBox>
             </content>
@@ -47,7 +51,7 @@
           <Page id="pagePeople" showHeader="false" showFooter="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent">
-                <Text text="{i18n>wizStepPeople}" class="appStepHeading"/>
+                <Title text="{i18n>wizStepPeople}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepPeople" type="XML"/>
               </VBox>
             </content>
@@ -56,7 +60,7 @@
           <Page id="pageProfession" showHeader="false" showFooter="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent">
-                <Text text="{i18n>wizStepProfession}" class="appStepHeading"/>
+                <Title text="{i18n>wizStepProfession}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <core:Fragment fragmentName="sap.pc_lite.lite.fragment.StepProfessionPk" type="XML"/>
               </VBox>
             </content>
@@ -84,7 +88,7 @@
           <Page id="pageChecks" showHeader="false" showFooter="false" enableScrolling="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
-                <Text text="{i18n>tabChecks}" class="appStepHeading"/>
+                <Title text="{i18n>tabChecks}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar">
                   <ToolbarSpacer/>
                   <Button icon="sap-icon://add" text="{i18n>btnAdd}" press="onAddCheckRow"
@@ -108,7 +112,7 @@
           <Page id="pageBarriers" showHeader="false" showFooter="false" enableScrolling="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent appWizardStepContentFixed">
-                <Text text="{i18n>tabBarriers}" class="appStepHeading"/>
+                <Title text="{i18n>tabBarriers}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <Toolbar class="appToolbar appTableToolbar appWizardFixedToolbar"
                          visible="{path:'formModel>/PkLevel', formatter:'.formatter.isBarriersAllowed'}">
                   <ToolbarSpacer/>
@@ -129,7 +133,7 @@
           <Page id="pageSubmit" showHeader="false" showFooter="false" class="appStepPage">
             <content>
               <VBox class="appContent appWizardStepContent appWizardSubmitStep">
-                <Text text="{i18n>wizStepSubmit}" class="appStepHeading"/>
+                <Title text="{i18n>wizStepSubmit}" level="H2" titleStyle="H4" wrapping="true" class="appStepHeading"/>
                 <Text text="{i18n>hintSubmitStep}" class="appWizardSubmitHint"/>
 
                 <Panel expandable="false" width="100%" class="appCard">
@@ -146,8 +150,14 @@
                       <Label text="{i18n>lblCheckDate}" class="appLabel"/>
                       <Text text="{path:'formModel>/CheckDate', formatter:'.formatter.displayDate'}" class="appSummaryValue"/>
 
+                      <!-- [Fix UX-11] Время — как на шаге 1 (ЧЧ:ММ), не сырое ЧЧ:ММ:СС;
+                           часовой пояс (обязательный, мог быть определён автоматически) — тоже в сводке. -->
                       <Label text="{i18n>lblCheckTime}" class="appLabel"/>
-                      <Text text="{formModel>/CheckTime}" class="appSummaryValue"/>
+                      <Text text="{path:'formModel>/CheckTime', formatter:'.formatter.displayTime'}" class="appSummaryValue"/>
+
+                      <Label text="{i18n>lblTimeZone}" class="appLabel"/>
+                      <Text text="{parts:[{path:'dictionaryModel>/_index/TIMEZONE'},{path:'formModel>/TimeZone'}], formatter:'.formatter.dictText'}"
+                            class="appSummaryValue"/>
 
                       <Label text="{i18n>lblLocation}" class="appLabel"/>
                       <Text text="{formModel>/LocationPath}" class="appSummaryValue"/>
@@ -170,27 +180,40 @@
                            а не показывает пустое значение под подписью. -->
                       <Label text="{i18n>lblEquipment}" class="appLabel" visible="{= !!${formModel>/Equipment} }"/>
                       <Text text="{formModel>/Equipment}" class="appSummaryValue" visible="{= !!${formModel>/Equipment} }"/>
-
-                      <!-- [Fix UX, по запросу] Количество проверок/барьеров —
-                           теперь строками той же сводки, что и остальные поля,
-                           а не отдельным текстом под карточкой (см. ниже —
-                           старый wizardModel>/countsSummary убран, дублировал
-                           то же самое, что и footerStatus, второй раз на
-                           экране). checksModel>/items.length — то же самое
-                           число, что считает RowsAndAutoFill.js#_updateFooterCount
-                           для footerStatus, просто прочитано напрямую
-                           биндингом, без второго места, дублирующего подсчёт.
-                           "Если они есть" — строка скрыта при 0 (пустая
-                           проверка/пустой барьер не показывается сводкой,
-                           как и Оборудование выше). -->
-                      <Label text="{i18n>lblChecksCount}" class="appLabel" visible="{= ${checksModel>/items}.length > 0 }"/>
-                      <Text text="{= ${checksModel>/items}.length }" class="appSummaryValue" visible="{= ${checksModel>/items}.length > 0 }"/>
-
-                      <Label text="{i18n>lblBarriersCount}" class="appLabel" visible="{= ${barriersModel>/items}.length > 0 }"/>
-                      <Text text="{= ${barriersModel>/items}.length }" class="appSummaryValue" visible="{= ${barriersModel>/items}.length > 0 }"/>
                     </f:content>
                   </f:SimpleForm>
                 </Panel>
+
+                <!-- [Fix UX-11] Что именно уйдёт: строки с кодом (как в payload,
+                     BusinessRules.countCodedRows), их результат и несоответствие —
+                     без перехода на шаги 4-5. Заголовок несёт число строк (вместо
+                     прежних строк-счётчиков в карточке); currentStep в parts —
+                     пересчёт при входе на шаг (код меняется внутри строки). -->
+                <VBox class="appSummarySection"
+                      visible="{parts:['checksModel>/items','wizardModel>/currentStep'], formatter:'.formatter.hasChecks'}">
+                  <Title text="{parts:['i18n>summaryChecksTitle','checksModel>/items','wizardModel>/currentStep'], formatter:'.formatter.checksTitle'}"
+                         level="H3" titleStyle="H5" wrapping="true" class="appSummarySectionTitle"/>
+                  <List items="{checksModel>/items}" showNoData="false" class="appSummaryList">
+                    <StandardListItem visible="{= !!${checksModel>CheckCode} }" wrapping="true"
+                                      title="{checksModel>CheckText}"
+                                      info="{parts:[{path:'dictionaryModel>/_index/STATUS'},{path:'checksModel>Status'}], formatter:'.formatter.dictText'}"
+                                      infoState="{path:'checksModel>Status', formatter:'.formatter.resultState'}"
+                                      description="{parts:['checksModel>Status','checksModel>NonConformityDescription','checksModel>NonConformityLocation','checksModel>Comment'], formatter:'.formatter.summaryRowNote'}"/>
+                  </List>
+                </VBox>
+
+                <VBox class="appSummarySection"
+                      visible="{parts:['barriersModel>/items','wizardModel>/currentStep'], formatter:'.formatter.hasBarriers'}">
+                  <Title text="{parts:['i18n>summaryBarriersTitle','barriersModel>/items','wizardModel>/currentStep'], formatter:'.formatter.barriersTitle'}"
+                         level="H3" titleStyle="H5" wrapping="true" class="appSummarySectionTitle"/>
+                  <List items="{barriersModel>/items}" showNoData="false" class="appSummaryList">
+                    <StandardListItem visible="{= !!${barriersModel>BarrierCode} }" wrapping="true"
+                                      title="{barriersModel>BarrierText}"
+                                      info="{parts:[{path:'dictionaryModel>/_index/STATUS'},{path:'barriersModel>Status'}], formatter:'.formatter.dictText'}"
+                                      infoState="{path:'barriersModel>Status', formatter:'.formatter.resultState'}"
+                                      description="{parts:['barriersModel>Status','barriersModel>NonConformityDescription','barriersModel>NonConformityLocation','barriersModel>Comment'], formatter:'.formatter.summaryRowNote'}"/>
+                  </List>
+                </VBox>
               </VBox>
             </content>
           </Page>

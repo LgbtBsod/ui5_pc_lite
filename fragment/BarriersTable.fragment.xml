@@ -34,7 +34,8 @@
         <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colComment}"/>
         </Column>
-        <Column minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
+        <!-- [Fix, замер] 15rem: "Неудовлетворительно" + стрелка Select не влезали. -->
+        <Column width="15rem" minScreenWidth="Tablet" demandPopin="true" popinDisplay="Block">
           <Text text="{i18n>colResult}"/>
         </Column>
         <!-- [Поля несоответствия, по запросу] См. идентичный комментарий в
@@ -88,9 +89,11 @@
                  в ChecksTable.fragment.xml (тот же класс проблемы: ComboBox внутри
                  шаблона строки Table, вложенный items-биндинг с templateShareable
                  не всегда переживает клонирование внешнего шаблона в SAPUI5 1.71). -->
-            <ComboBox selectedKey="{barriersModel>Status}"
-                      items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
-                      width="100%" class="appCellComboBox"/>
+            <!-- [Fix UX-12] Select вместо ComboBox: свободный текст давал видимое
+                 "неуд" при Status "". forceSelection="false" — "" = результат не выбран. -->
+            <Select selectedKey="{barriersModel>Status}" forceSelection="false"
+                    items="{path:'dictionaryModel>/STATUS', factory: '.statusItemFactory'}"
+                    width="100%" class="appCellSelect"/>
             <!-- [Поля несоответствия, по запросу] См. идентичный комментарий
                  в ChecksTable.fragment.xml. -->
             <TextArea value="{barriersModel>NonConformityDescription}" placeholder="{i18n>phNonConformityDescription}" width="100%"

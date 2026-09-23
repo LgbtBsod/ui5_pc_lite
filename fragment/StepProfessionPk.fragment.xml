@@ -12,11 +12,14 @@
                   class="appForm">
       <f:content>
         <Label text="{i18n>lblPkLevel}" labelFor="pkLevel" class="appLabel"/>
-        <ComboBox id="pkLevel" selectedKey="{formModel>/PkLevel}"
-                  items="{path:'dictionaryModel>/PKLEVEL', parameters:{templateShareable:true}}" width="100%"
-                  selectionChange="onPkLevelChange" class="appInput">
+        <!-- [Fix FN-04/WZ-03/SF-01/UX-12] Select, а не ComboBox: у ComboBox каждое
+             нажатие клавиши (Backspace, typeahead) слало selectionChange и сносило
+             строки. forceSelection="false" — иначе пустой PkLevel молча стал бы "0". -->
+        <Select id="pkLevel" selectedKey="{formModel>/PkLevel}" forceSelection="false"
+                items="{path:'dictionaryModel>/PKLEVEL', parameters:{templateShareable:true}}" width="100%"
+                change="onPkLevelChange" class="appInput">
           <core:Item key="{dictionaryModel>Code}" text="{dictionaryModel>Text}" />
-        </ComboBox>
+        </Select>
 
         <Label text="{i18n>lblProfession}" labelFor="profession" class="appLabel"/>
         <ComboBox id="profession" selectedKey="{formModel>/Profession}"

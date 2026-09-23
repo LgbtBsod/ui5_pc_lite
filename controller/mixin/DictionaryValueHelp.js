@@ -224,6 +224,8 @@ sap.ui.define([
       const sPath = `/items/${iRowIndex}`;
       oModel.setProperty(`${sPath}/${oCfg.codeProp}`, sCode);
       oModel.setProperty(`${sPath}/${oCfg.textProp}`, sText);
+      // [Fix FN-05] Footer считает только строки с кодом — код только что появился.
+      this._updateFooterCount();
 
       // [Fix РЕАЛЬНЫЙ БАГ, аудит] Первый выбор кода в новой строке роняет
       // фокус клавиатуры в <body> — см. подробное обоснование ниже у
